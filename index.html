@@ -83,13 +83,45 @@
         <div class="sub">画像・タグ・メモ・質問管理</div>
       </a>
     </div>
+    <div class="card">
+  <h2>データ同期 / バックアップ</h2>
+  <div class="menu">
+    <a href="#" onclick="exportBackup(); return false;">バックアップを書き出す</a>
+    <a href="#" onclick="document.getElementById('importFile').click(); return false;">バックアップを読み込む</a>
+  </div>
+  <input type="file" id="importFile" accept=".json,application/json" style="display:none">
+</div>
   </div>
 
-  <script>
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./service-worker.js")
-        .catch(err => console.log("SW登録失敗", err));
+  <script src="data.js"></script>
+<script>
+  function exportBackup() {
+    exportAllData();
+  }
+
+  document.getElementById("importFile").addEventListener("change", function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!confirm("現在のデータを上書きして読み込みますか？")) {
+      e.target.value = "";
+      return;
     }
-  </script>
+
+    importAllDataFromFile(file, function(ok) {
+      if (ok) {
+        alert("読み込みました");
+        location.reload();
+      }
+    });
+
+    e.target.value = "";
+  });
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("./service-worker.js")
+      .catch(err => console.log("SW登録失敗", err));
+  }
+</script>
 </body>
 </html>

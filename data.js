@@ -246,6 +246,54 @@ function getSessionsByScenarioId(scenarioId) {
 function getPlayerDisplayName(player) {
   return normalizePlayer(player).name || "無名PL";
 }
+function exportAllData() {
+  const data = {
+    scenarios,
+    characters,
+    sessions,
+    exportedAt: new Date().toISOString()
+  };
+
+  const blob = new Blob(
+    [JSON.stringify(data, null, 2)],
+    { type: "application/json" }
+  );
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `trpg_backup_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importAllDataFromFile(file, onDone) {
+  const reader = new FileReader();
+
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+
+      if (!data || typeof data !== "object") {
+        throw new Error("JSON形式が不正です");
+      }
+
+      scenarios = Array.isArray(data.scenarios) ? data.scenarios : [];
+      characters = Array.isArray(data.characters) ? data.characters : [];
+      sessions = Array.isArray(data.sessions) ? data.sessions : [];
+
+      normalizeData();
+
+      if (typeof onDone === "function") onDone(true);
+    } catch (e) {
+      console.error(e);
+      alert("バックアップの読み込みに失敗しました");
+      if (typeof onDone === "function") onDone(false);
+    }
+  };
+
+  reader.readAsText(file);
+}
 
 function getRelatedCharacters(characterId) {
   const relatedMap = new Map();
