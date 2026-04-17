@@ -1,0 +1,293 @@
+const STORAGE_KEYS = {
+  scenarios: "scenarios",
+  characters: "characters",
+  sessions: "sessions",
+  backup: "backup"
+};
+
+function readJSON(key, fallback = []) {
+  try {
+    return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
+  } catch (e) {
+    console.error(`${key} の読込に失敗`, e);
+    return Array.isArray(fallback) ? [...fallback] : fallback;
+  }
+}
+
+let scenarios = readJSON(STORAGE_KEYS.scenarios, []);
+let characters = readJSON(STORAGE_KEYS.characters, []);
+let sessions = readJSON(STORAGE_KEYS.sessions, []);
+
+function uid() {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  return "id_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, s => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[s]));
+}
+
+function defaultQuestions() {
+  return [
+    { id: uid(), q: "名前とその由来は？", type: "text", value: "" },
+    { id: uid(), q: "好きな食べ物", type: "text", value: "" },
+    { id: uid(), q: "嫌いな食べ物", type: "text", value: "" },
+    { id: uid(), q: "好きな季節", type: "text", value: "" },
+    { id: uid(), q: "人生の目標", type: "text", value: "" },
+    { id: uid(), q: "恋愛観", type: "text", value: "" },
+    { id: uid(), q: "協調性", type: "scale", value: 3 },
+    { id: uid(), q: "正義感", type: "scale", value: 3 },
+    { id: uid(), q: "狂気", type: "scale", value: 3 }
+  ];
+}
+
+function toId(value) {
+  return String(value ?? "");
+}
+
+function normalizePlayer(player) {
+  if (typeof player === "string") {
+    return {
+      id: uid(),
+      name: player,
+      url: ""
+    };
+  }
+
+  return {
+    id: toId(player?.id || uid()),
+    name: player?.name || "",
+    url: player?.url || ""
+  };
+}
+
+function normalizeRelatedPC(row) {
+  if (typeof row === "string") {
+    return {
+      id: uid(),
+      player: row,
+      pc: "",
+      url: ""
+    };
+  }
+
+  return {
+    id: toId(row?.id || uid()),
+    player: row?.player || "",
+    pc: row?.pc || "",
+    url: row?.url || ""
+  };
+}
+
+function normalizeData() {
+  if (!Array.isArray(scenarios)) scenarios = [];
+  if (!Array.isArray(characters)) characters = [];
+  if (!Array.isArray(sessions)) sessions = [];
+
+  scenarios = scenarios.map(s => ({
+    id: toId(s.id || uid()),
+    title: s.title || "無題シナリオ",
+    system: s.system || "",
+    status: s.status || "未通過",
+    playerCount: s.playerCount || "",
+    url: s.url || "",
+    memo: s.memo || ""
+  }));
+
+  characters = characters.map(c => ({
+    id: toId(c.id || uid()),
+    name: c.name || "新規キャラクター",
+    url: c.url || "",
+    images: Array.isArray(c.images) ? c.images.filter(Boolean) : [],
+    tags: Array.isArray(c.tags) ? c.tags.filter(Boolean) : [],
+    memo: c.memo || "",
+    questions: Array.isArray(c.questions) && c.questions.length
+      ? c.questions.map(q => ({
+          id: toId(q.id || uid()),
+          q: q.q || "質問",
+          type: q.type === "scale" ? "scale" : "text",
+          value: q.type === "scale" ? Number(q.value || 3) : (q.value || "")
+        }))
+      : defaultQuestions()
+  }));
+
+  sessions = sessions.map(s => {
+    const players = Array.isArray(s.players)
+      ? s.players.map(normalizePlayer)
+      : String(s.players || "")
+          .split(/[\n,]/)
+          .map(v => v.trim())
+          .filter(Boolean)
+          .map(name => normalizePlayer(name));
+
+    const charIds = Array.isArray(s.charIds)
+      ? s.charIds.map(toId).filter(Boolean)
+      : (Array.isArray(s.characters) ? s.characters.map(toId).filter(Boolean) : []);
+
+    const logUrls = Array.isArray(s.logUrls)
+      ? s.logUrls.map(v => String(v || "").trim()).filter(Boolean)
+      : String(s.logUrls || "")
+          .split("\n")
+          .map(v => v.trim())
+          .filter(Boolean);
+
+    const relatedPCs = Array.isArray(s.relatedPCs)
+      ? s.relatedPCs.map(normalizeRelatedPC)
+      : [];
+
+    return {
+      id: toId(s.id || uid()),
+      scenarioId: s.scenarioId ? toId(s.scenarioId) : "",
+      title: s.title || "",
+      kp: s.kp || "",
+      players,
+      charIds: [...new Set(charIds)],
+      logUrls,
+      relatedPCs,
+      dates: Array.isArray(s.dates)
+        ? s.dates.filter(Boolean)
+        : String(s.dates || "").split("\n").map(v => v.trim()).filter(Boolean),
+      status: s.status || "予定",
+      memo: s.memo || ""
+    };
+  });
+
+  saveAll(false);
+}
+
+function makeBackupSlim() {
+  return {
+    scenarios,
+    sessions,
+    characters: characters.map(c => ({
+      ...c,
+      images: []
+    }))
+  };
+}
+
+function saveAll(withBackup = true) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.scenarios, JSON.stringify(scenarios));
+    localStorage.setItem(STORAGE_KEYS.characters, JSON.stringify(characters));
+    localStorage.setItem(STORAGE_KEYS.sessions, JSON.stringify(sessions));
+
+    if (withBackup) {
+      let backups = readJSON(STORAGE_KEYS.backup, []);
+      backups.unshift({
+        date: new Date().toLocaleString("ja-JP"),
+        data: makeBackupSlim()
+      });
+      backups = backups.slice(0, 5);
+      localStorage.setItem(STORAGE_KEYS.backup, JSON.stringify(backups));
+    }
+
+    return true;
+  } catch (e) {
+    console.error("保存に失敗しました", e);
+    alert("保存に失敗しました。画像サイズが大きすぎる可能性があります。別の小さめの画像で試してください。");
+    return false;
+  }
+}
+
+function restoreBackup(index) {
+  const backups = readJSON(STORAGE_KEYS.backup, []);
+  if (!backups[index]) return false;
+  if (!confirm("このバックアップを復元しますか？")) return false;
+
+  scenarios = backups[index].data.scenarios || [];
+  characters = backups[index].data.characters || [];
+  sessions = backups[index].data.sessions || [];
+  normalizeData();
+  location.reload();
+  return true;
+}
+
+function getScenarioById(id) {
+  return scenarios.find(s => toId(s.id) === toId(id));
+}
+
+function getCharacterById(id) {
+  return characters.find(c => toId(c.id) === toId(id));
+}
+
+function getSessionById(id) {
+  return sessions.find(s => toId(s.id) === toId(id));
+}
+
+function removeCharacterFromSessions(characterId) {
+  sessions.forEach(s => {
+    s.charIds = (s.charIds || []).filter(id => toId(id) !== toId(characterId));
+  });
+}
+
+function removeScenarioFromSessions(scenarioId) {
+  sessions.forEach(s => {
+    if (toId(s.scenarioId) === toId(scenarioId)) {
+      s.scenarioId = "";
+    }
+  });
+}
+
+function getSessionsByCharacterId(characterId) {
+  return sessions.filter(s => (s.charIds || []).includes(toId(characterId)));
+}
+
+function getSessionsByScenarioId(scenarioId) {
+  return sessions.filter(s => toId(s.scenarioId) === toId(scenarioId));
+}
+
+function getPlayerDisplayName(player) {
+  return normalizePlayer(player).name || "無名PL";
+}
+
+function getRelatedCharacters(characterId) {
+  const relatedMap = new Map();
+
+  getSessionsByCharacterId(characterId).forEach(session => {
+    (session.charIds || []).forEach(cid => {
+      if (toId(cid) === toId(characterId)) return;
+      const c = getCharacterById(cid);
+      if (!c) return;
+
+      if (!relatedMap.has(toId(c.id))) {
+        relatedMap.set(toId(c.id), {
+          type: "character",
+          character: c,
+          sessions: []
+        });
+      }
+
+      relatedMap.get(toId(c.id)).sessions.push({
+        id: session.id,
+        title: session.title || "無題セッション"
+      });
+    });
+
+    (session.relatedPCs || []).forEach(row => {
+      const key = `pc:${row.id}`;
+      if (!relatedMap.has(key)) {
+        relatedMap.set(key, {
+          type: "related_pc",
+          relatedPC: normalizeRelatedPC(row),
+          sessions: []
+        });
+      }
+
+      relatedMap.get(key).sessions.push({
+        id: session.id,
+        title: session.title || "無題セッション"
+      });
+    });
+  });
+
+  return [...relatedMap.values()];
+}
+
+normalizeData();

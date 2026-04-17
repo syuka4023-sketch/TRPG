@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>シナリオ詳細</title>
+  <style>
+    body{font-family:sans-serif;margin:0;padding:20px;background:#f5f5f5;color:#222}
+    .wrap{max-width:1000px;margin:0 auto}
+    .card{background:#fff;padding:16px;border-radius:16px;margin-bottom:14px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    input, textarea, select, button{
+      font:inherit;padding:10px;border-radius:10px;border:1px solid #ccc
+    }
+    input, textarea, select{background:#fff}
+    textarea{width:100%;min-height:100px;resize:vertical}
+    .grow{flex:1;min-width:180px}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .session-item,.view-item{
+      border:1px solid #ddd;border-radius:12px;padding:12px;margin-bottom:10px;background:#fafafa
+    }
+    .muted{color:#666;font-size:14px}
+    .hidden{display:none}
+    a{color:#222}
+    @media (max-width: 768px){
+  body{padding:12px}
+  .card,.panel{padding:14px;border-radius:14px}
+  .row{gap:8px}
+  input, textarea, select, button{
+    width:100%;
+    min-width:0;
+  }
+  .grow{min-width:0}
+}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <p><a href="scenarios.html">← シナリオ一覧へ戻る</a></p>
+
+    <div class="card">
+      <div class="row" style="align-items:center;">
+        <h2 id="pageTitle" style="margin:0;flex:1;">シナリオ詳細</h2>
+        <button id="editToggleBtn" type="button" onclick="toggleEditMode()">編集する</button>
+      </div>
+    </div>
+
+    <div id="viewMode">
+      <div class="card">
+        <div class="view-item"><b>シナリオ名:</b> <span id="viewTitle"></span></div>
+        <div class="view-item"><b>システム:</b> <span id="viewSystem"></span></div>
+        <div class="view-item"><b>状態:</b> <span id="viewStatus"></span></div>
+        <div class="view-item"><b>人数:</b> <span id="viewPlayerCount"></span></div>
+        <div class="view-item"><b>URL:</b> <span id="viewUrl"></span></div>
+        <div class="view-item"><b>メモ:</b><br><span id="viewMemo"></span></div>
+      </div>
+
+      <div class="card">
+        <h3>関連セッション</h3>
+        <div id="sessionList"></div>
+      </div>
+    </div>
+
+    <div id="editMode" class="hidden">
+      <div class="card">
+        <div class="row">
+          <input id="title" class="grow" placeholder="シナリオ名">
+          <select id="system" class="grow">
+            <option value="">システム未設定</option>
+            <option value="CoC">CoC</option>
+            <option value="DX3rd">DX3rd</option>
+          </select>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <select id="status" class="grow">
+            <option value="未通過">未通過</option>
+            <option value="通過済み">通過済み</option>
+            <option value="シナリオ所持">シナリオ所持</option>
+            <option value="その他">その他</option>
+          </select>
+          <select id="playerCount" class="grow">
+            <option value="">人数未設定</option>
+            <option value="タイマン">タイマン</option>
+            <option value="2人">2人</option>
+            <option value="4人">4人</option>
+            <option value="5人以上">5人以上</option>
+          </select>
+        </div>
+        <div style="margin-top:10px;">
+          <input id="url" class="grow" placeholder="URL（参考ページ / 配布ページなど）">
+        </div>
+        <div style="margin-top:10px;">
+          <textarea id="memo" placeholder="メモ"></textarea>
+        </div>
+        <div class="actions">
+          <button onclick="saveScenario()">保存</button>
+          <button onclick="createSession()">このシナリオでセッション作成</button>
+          <button onclick="deleteScenario()">削除</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script>
+    const id = new URLSearchParams(location.search).get("id");
+    const scenario = getScenarioById(id);
+    let isEditMode = false;
+
+    if (!scenario) {
+      location.href = "scenarios.html";
+    }
+
+    function toggleEditMode(forceValue) {
+      isEditMode = typeof forceValue === "boolean" ? forceValue : !isEditMode;
+      document.getElementById("viewMode").classList.toggle("hidden", isEditMode);
+      document.getElementById("editMode").classList.toggle("hidden", !isEditMode);
+      document.getElementById("editToggleBtn").textContent = isEditMode ? "表示に戻る" : "編集する";
+
+      if (isEditMode) renderEditMode();
+      else renderViewMode();
+    }
+
+    function saveScenario() {
+      scenario.title = document.getElementById("title").value.trim() || "無題シナリオ";
+      scenario.system = document.getElementById("system").value;
+      scenario.status = document.getElementById("status").value;
+      scenario.playerCount = document.getElementById("playerCount").value;
+      scenario.url = document.getElementById("url").value.trim();
+      scenario.memo = document.getElementById("memo").value.trim();
+
+      if (saveAll()) {
+        renderViewMode();
+        toggleEditMode(false);
+        alert("保存しました");
+      }
+    }
+
+    function createSession() {
+      const newSession = {
+        id: uid(),
+        scenarioId: toId(scenario.id),
+        title: scenario.title,
+        kp: "",
+        charIds: [],
+        logUrls: [],
+        relatedPCs: [],
+        dates: [],
+        status: "予定",
+        memo: ""
+      };
+
+      sessions.unshift(newSession);
+      if (saveAll()) {
+        location.href = `session_detail.html?id=${encodeURIComponent(newSession.id)}`;
+      }
+    }
+
+    function deleteScenario() {
+      if (!confirm(`「${scenario.title}」を削除しますか？\n関連セッションのシナリオ紐付けは外れます。`)) return;
+
+      scenarios = scenarios.filter(s => toId(s.id) !== toId(id));
+      removeScenarioFromSessions(id);
+      if (saveAll()) {
+        location.href = "scenarios.html";
+      }
+    }
+
+    function renderSessionList() {
+      const list = getSessionsByScenarioId(id);
+      document.getElementById("sessionList").innerHTML = list.map(s => `
+        <div class="session-item">
+          <div><a href="session_detail.html?id=${encodeURIComponent(s.id)}"><b>${escapeHtml(s.title || "無題セッション")}</b></a></div>
+          <div class="muted">状態: ${escapeHtml(s.status || "予定")}</div>
+          <div class="muted">KP: ${escapeHtml(s.kp || "未設定")}</div>
+          <div class="muted">日付: ${escapeHtml((s.dates || []).join(" / ") || "未設定")}</div>
+          <div class="muted">参加キャラ数: ${(s.charIds || []).length}</div>
+        </div>
+      `).join("") || "関連セッションなし";
+    }
+
+    function renderViewMode() {
+      document.getElementById("pageTitle").textContent = scenario.title || "シナリオ詳細";
+      document.getElementById("viewTitle").textContent = scenario.title || "無題シナリオ";
+      document.getElementById("viewSystem").textContent = scenario.system || "未設定";
+      document.getElementById("viewStatus").textContent = scenario.status || "未設定";
+      document.getElementById("viewPlayerCount").textContent = scenario.playerCount || "未設定";
+      document.getElementById("viewUrl").innerHTML = scenario.url
+        ? `<a href="${escapeHtml(scenario.url)}" target="_blank" rel="noopener noreferrer">URLを開く</a>`
+        : "未設定";
+      document.getElementById("viewMemo").textContent = scenario.memo || "未設定";
+      renderSessionList();
+    }
+
+    function renderEditMode() {
+      document.getElementById("title").value = scenario.title || "";
+      document.getElementById("system").value = scenario.system || "";
+      document.getElementById("status").value = scenario.status || "未通過";
+      document.getElementById("playerCount").value = scenario.playerCount || "";
+      document.getElementById("url").value = scenario.url || "";
+      document.getElementById("memo").value = scenario.memo || "";
+    }
+
+    if (scenario) {
+      renderViewMode();
+      toggleEditMode(false);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "TRPG管理ツール",
+  "short_name": "TRPG",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f5f5f5",
+  "theme_color": "#333333",
+  "icons": []
+}

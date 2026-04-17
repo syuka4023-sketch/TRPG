@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>セッション一覧</title>
+  <style>
+    *{box-sizing:border-box}
+    body{font-family:sans-serif;margin:0;padding:16px;background:#f5f5f5;color:#222}
+    .wrap{max-width:1100px;margin:0 auto}
+    .panel{background:#fff;padding:16px;border-radius:16px;margin-bottom:14px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    input, select, button{
+      font:inherit;padding:12px;border-radius:12px;border:1px solid #ccc
+    }
+    .grow{flex:1;min-width:180px}
+    .grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fill, minmax(170px, 1fr));
+      gap:12px;
+    }
+    .icon-card{
+      background:#fff;
+      border-radius:16px;
+      padding:18px 14px;
+      box-shadow:0 2px 10px rgba(0,0,0,.08);
+      cursor:pointer;
+      min-height:90px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      font-weight:bold;
+      line-height:1.5;
+      word-break:break-word;
+    }
+
+    @media (max-width: 768px){
+      body{padding:12px}
+      .panel{padding:14px;border-radius:14px}
+      input, select, button{
+        width:100%;
+        min-width:0;
+      }
+      .grow{min-width:0}
+      .grid{
+        grid-template-columns:repeat(2, minmax(0, 1fr));
+        gap:10px;
+      }
+      .icon-card{
+        min-height:84px;
+        padding:14px 10px;
+        border-radius:14px;
+        font-size:15px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <p><a href="index.html">← 戻る</a></p>
+
+    <div class="panel">
+      <h2>セッション一覧</h2>
+      <div class="row">
+        <input id="search" class="grow" placeholder="検索（タイトル / KP / キャラ）" oninput="render()">
+        <select id="statusFilter" onchange="render()">
+          <option value="">全ステータス</option>
+          <option value="予定">予定</option>
+          <option value="通過">通過</option>
+          <option value="中断">中断</option>
+          <option value="中止">中止</option>
+        </select>
+        <select id="sortBy" onchange="render()">
+          <option value="created_desc">新しい順</option>
+          <option value="created_asc">古い順</option>
+          <option value="title_asc">タイトル昇順</option>
+          <option value="title_desc">タイトル降順</option>
+        </select>
+        <button onclick="createEmptySession()">＋ 新規セッション</button>
+      </div>
+    </div>
+
+    <div id="list" class="grid"></div>
+  </div>
+
+  <script src="data.js"></script>
+  <script>
+    function createEmptySession() {
+      const s = {
+        id: uid(),
+        scenarioId: "",
+        title: "新規セッション",
+        kp: "",
+        charIds: [],
+        logUrls: [],
+        relatedPCs: [],
+        dates: [],
+        status: "予定",
+        memo: ""
+      };
+      sessions.unshift(s);
+      const ok = saveAll();
+      if (!ok) {
+        sessions.shift();
+        return;
+      }
+      location.href = `session_detail.html?id=${encodeURIComponent(s.id)}`;
+    }
+
+    function compareText(a, b) {
+      return String(a || "").localeCompare(String(b || ""), "ja");
+    }
+
+    function sortSessions(list, sortBy) {
+      const copied = [...list];
+      switch (sortBy) {
+        case "created_asc":
+          copied.sort((a, b) => compareText(a.id, b.id));
+          break;
+        case "title_asc":
+          copied.sort((a, b) => compareText(a.title, b.title));
+          break;
+        case "title_desc":
+          copied.sort((a, b) => compareText(b.title, a.title));
+          break;
+        case "created_desc":
+        default:
+          copied.sort((a, b) => compareText(b.id, a.id));
+          break;
+      }
+      return copied;
+    }
+
+    function render() {
+      const word = document.getElementById("search").value.trim().toLowerCase();
+      const statusFilter = document.getElementById("statusFilter").value;
+      const sortBy = document.getElementById("sortBy").value;
+
+      const filtered = sessions.filter(s => {
+        const characterNames = (s.charIds || []).map(cid => getCharacterById(cid)?.name || "").join(" ");
+        const text = [
+          s.title,
+          s.kp,
+          characterNames
+        ].join(" ").toLowerCase();
+
+        const statusOk = !statusFilter || s.status === statusFilter;
+        return text.includes(word) && statusOk;
+      });
+
+      const sorted = sortSessions(filtered, sortBy);
+
+      document.getElementById("list").innerHTML = sorted.map(s => {
+        const scenario = getScenarioById(s.scenarioId);
+        const label = scenario?.title || s.title || "無題セッション";
+        return `
+          <div class="icon-card" onclick="location.href='session_detail.html?id=${encodeURIComponent(s.id)}'">
+            ${escapeHtml(label)}
+          </div>
+        `;
+      }).join("") || `<div class="panel">セッションがありません。</div>`;
+    }
+
+    render();
+  </script>
+</body>
+</html>

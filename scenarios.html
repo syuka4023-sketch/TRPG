@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>シナリオ一覧</title>
+  <style>
+    *{box-sizing:border-box}
+    body{font-family:sans-serif;margin:0;padding:16px;background:#f5f5f5;color:#222}
+    .wrap{max-width:1100px;margin:0 auto}
+    .panel{background:#fff;padding:16px;border-radius:16px;margin-bottom:14px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    input, textarea, button, select{
+      font:inherit;padding:12px;border-radius:12px;border:1px solid #ccc
+    }
+    textarea{width:100%;min-height:90px;resize:vertical}
+    .grow{flex:1;min-width:180px}
+    .hidden{display:none}
+    .grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fill, minmax(170px, 1fr));
+      gap:12px;
+    }
+    .icon-card{
+      border-radius:16px;
+      padding:18px 14px;
+      box-shadow:0 2px 10px rgba(0,0,0,.08);
+      cursor:pointer;
+      min-height:100px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      font-weight:bold;
+      line-height:1.5;
+      word-break:break-word;
+      border:2px solid transparent;
+    }
+    .status-cleared{background:#e8f7e8;border-color:#7bc67b}
+    .status-owned{background:#e8f1ff;border-color:#7aa7ff}
+    .status-notplayed{background:#f1f1f1;border-color:#c7c7c7}
+    .status-other{background:#f3e8ff;border-color:#b38cff}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .meta{
+      font-size:12px;
+      color:#555;
+      margin-top:8px;
+      font-weight:normal;
+      line-height:1.4;
+    }
+
+    @media (max-width: 768px){
+      body{padding:12px}
+      .panel{padding:14px;border-radius:14px}
+      .row{gap:8px}
+      input, textarea, button, select{
+        width:100%;
+        min-width:0;
+        padding:12px;
+      }
+      .grow{min-width:0}
+      .grid{
+        grid-template-columns:repeat(2, minmax(0, 1fr));
+        gap:10px;
+      }
+      .icon-card{
+        min-height:88px;
+        padding:14px 10px;
+        font-size:15px;
+        border-radius:14px;
+      }
+      .actions button{
+        width:100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <p><a href="index.html">← 戻る</a></p>
+
+    <div class="panel">
+      <div class="row" style="align-items:center;">
+        <h2 style="margin:0;flex:1;">シナリオ一覧</h2>
+        <button onclick="toggleAddForm()">＋ シナリオ追加</button>
+      </div>
+    </div>
+
+    <div id="addFormCard" class="panel hidden">
+      <h3>シナリオ追加</h3>
+      <div class="row">
+        <input id="title" class="grow" placeholder="シナリオ名">
+        <select id="system" class="grow">
+          <option value="">システム未設定</option>
+          <option value="CoC">CoC</option>
+          <option value="DX3rd">DX3rd</option>
+        </select>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <select id="status" class="grow">
+          <option value="未通過">未通過</option>
+          <option value="通過済み">通過済み</option>
+          <option value="シナリオ所持">シナリオ所持</option>
+          <option value="その他">その他</option>
+        </select>
+        <select id="playerCount" class="grow">
+          <option value="">人数未設定</option>
+          <option value="タイマン">タイマン</option>
+          <option value="2人">2人</option>
+          <option value="4人">4人</option>
+          <option value="5人以上">5人以上</option>
+        </select>
+      </div>
+      <div style="margin-top:10px;">
+        <textarea id="memo" placeholder="メモ"></textarea>
+      </div>
+      <div class="actions">
+        <button onclick="addScenario()">追加する</button>
+        <button onclick="closeAddForm()">閉じる</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="row">
+        <input id="search" class="grow" placeholder="検索（シナリオ名 / system / メモ）" oninput="render()">
+        <select id="sortBy" onchange="render()">
+          <option value="created_desc">新しい順</option>
+          <option value="created_asc">古い順</option>
+          <option value="title_asc">タイトル昇順</option>
+          <option value="title_desc">タイトル降順</option>
+          <option value="status_asc">状態順</option>
+          <option value="system_asc">システム順</option>
+          <option value="count_asc">人数順</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="list" class="grid"></div>
+  </div>
+
+  <script src="data.js"></script>
+  <script>
+    function toggleAddForm() {
+      document.getElementById("addFormCard").classList.toggle("hidden");
+    }
+
+    function closeAddForm() {
+      document.getElementById("addFormCard").classList.add("hidden");
+    }
+
+    function clearAddForm() {
+      document.getElementById("title").value = "";
+      document.getElementById("system").value = "";
+      document.getElementById("status").value = "未通過";
+      document.getElementById("playerCount").value = "";
+      document.getElementById("memo").value = "";
+    }
+
+    function addScenario() {
+      const title = document.getElementById("title").value.trim();
+      const system = document.getElementById("system").value;
+      const status = document.getElementById("status").value;
+      const playerCount = document.getElementById("playerCount").value;
+      const memo = document.getElementById("memo").value.trim();
+
+      if (!title) {
+        alert("シナリオ名を入れてください");
+        return;
+      }
+
+      const newScenario = {
+        id: uid(),
+        title,
+        system,
+        status,
+        playerCount,
+        memo,
+        url: ""
+      };
+
+      scenarios.unshift(newScenario);
+      const ok = saveAll();
+      if (!ok) {
+        scenarios.shift();
+        return;
+      }
+
+      clearAddForm();
+      closeAddForm();
+      render();
+    }
+
+    function compareText(a, b) {
+      return String(a || "").localeCompare(String(b || ""), "ja");
+    }
+
+    function statusClass(status) {
+      if (status === "通過済み") return "status-cleared";
+      if (status === "シナリオ所持") return "status-owned";
+      if (status === "その他") return "status-other";
+      return "status-notplayed";
+    }
+
+    function sortScenarios(list, sortBy) {
+      const copied = [...list];
+
+      switch (sortBy) {
+        case "created_asc":
+          copied.sort((a, b) => compareText(a.id, b.id));
+          break;
+        case "title_asc":
+          copied.sort((a, b) => compareText(a.title, b.title));
+          break;
+        case "title_desc":
+          copied.sort((a, b) => compareText(b.title, a.title));
+          break;
+        case "status_asc":
+          copied.sort((a, b) => compareText(a.status, b.status) || compareText(a.title, b.title));
+          break;
+        case "system_asc":
+          copied.sort((a, b) => compareText(a.system, b.system) || compareText(a.title, b.title));
+          break;
+        case "count_asc":
+          copied.sort((a, b) => compareText(a.playerCount, b.playerCount) || compareText(a.title, b.title));
+          break;
+        case "created_desc":
+        default:
+          copied.sort((a, b) => compareText(b.id, a.id));
+          break;
+      }
+
+      return copied;
+    }
+
+    function render() {
+      const word = document.getElementById("search").value.trim().toLowerCase();
+      const sortBy = document.getElementById("sortBy").value;
+
+      const filtered = scenarios.filter(s => {
+        const text = [
+          s.title,
+          s.system,
+          s.status,
+          s.playerCount,
+          s.memo
+        ].join(" ").toLowerCase();
+        return text.includes(word);
+      });
+
+      const sorted = sortScenarios(filtered, sortBy);
+
+      document.getElementById("list").innerHTML = sorted.map(s => `
+        <div class="icon-card ${statusClass(s.status)}" onclick="location.href='scenario_detail.html?id=${encodeURIComponent(s.id)}'">
+          <div>
+            <div>${escapeHtml(s.title)}</div>
+            <div class="meta">
+              ${escapeHtml(s.status || "未通過")}
+              ${s.playerCount ? " / " + escapeHtml(s.playerCount) : ""}
+            </div>
+          </div>
+        </div>
+      `).join("") || `<div class="panel">シナリオがありません。</div>`;
+    }
+
+    render();
+  </script>
+</body>
+</html>
