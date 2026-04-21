@@ -72,6 +72,8 @@
           <option value="中止">中止</option>
         </select>
         <select id="sortBy" onchange="render()">
+          <option value="date_desc">日程が新しい順</option>
+          <option value="date_asc">日程が古い順</option>
           <option value="created_desc">新しい順</option>
           <option value="created_asc">古い順</option>
           <option value="title_asc">タイトル昇順</option>
@@ -112,23 +114,61 @@
       return String(a || "").localeCompare(String(b || ""), "ja");
     }
 
+    function getSessionDateValue(session) {
+      const firstDate = Array.isArray(session.dates) && session.dates.length
+        ? String(session.dates[0]).trim()
+        : "";
+
+      if (!firstDate) return null;
+
+      const parsed = Date.parse(firstDate);
+      return Number.isNaN(parsed) ? null : parsed;
+    }
+
     function sortSessions(list, sortBy) {
       const copied = [...list];
+
       switch (sortBy) {
+        case "date_asc":
+          copied.sort((a, b) => {
+            const av = getSessionDateValue(a);
+            const bv = getSessionDateValue(b);
+            if (av === null && bv === null) return compareText(a.title, b.title);
+            if (av === null) return 1;
+            if (bv === null) return -1;
+            return av - bv || compareText(a.title, b.title);
+          });
+          break;
+
+        case "date_desc":
+          copied.sort((a, b) => {
+            const av = getSessionDateValue(a);
+            const bv = getSessionDateValue(b);
+            if (av === null && bv === null) return compareText(a.title, b.title);
+            if (av === null) return 1;
+            if (bv === null) return -1;
+            return bv - av || compareText(a.title, b.title);
+          });
+          break;
+
         case "created_asc":
           copied.sort((a, b) => compareText(a.id, b.id));
           break;
+
         case "title_asc":
           copied.sort((a, b) => compareText(a.title, b.title));
           break;
+
         case "title_desc":
           copied.sort((a, b) => compareText(b.title, a.title));
           break;
+
         case "created_desc":
         default:
           copied.sort((a, b) => compareText(b.id, a.id));
           break;
       }
+
       return copied;
     }
 
@@ -142,7 +182,8 @@
         const text = [
           s.title,
           s.kp,
-          characterNames
+          characterNames,
+          (s.dates || []).join(" ")
         ].join(" ").toLowerCase();
 
         const statusOk = !statusFilter || s.status === statusFilter;

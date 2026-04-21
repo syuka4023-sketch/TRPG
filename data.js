@@ -37,14 +37,11 @@ function toId(value) {
 function defaultQuestions() {
   return [
     { id: uid(), q: "名前とその由来は？", type: "text", value: "" },
-    { id: uid(), q: "好きな食べ物", type: "text", value: "" },
-    { id: uid(), q: "嫌いな食べ物", type: "text", value: "" },
-    { id: uid(), q: "好きな季節", type: "text", value: "" },
-    { id: uid(), q: "人生の目標", type: "text", value: "" },
-    { id: uid(), q: "恋愛観", type: "text", value: "" },
+    { id: uid(), q: "好奇心", type: "scale", value: 3 },
+    { id: uid(), q: "世話焼き", type: "scale", value: 3 },
+    { id: uid(), q: "野蛮度", type: "scale", value: 3 },
     { id: uid(), q: "協調性", type: "scale", value: 3 },
-    { id: uid(), q: "正義感", type: "scale", value: 3 },
-    { id: uid(), q: "狂気", type: "scale", value: 3 }
+    { id: uid(), q: "素直さ", type: "scale", value: 3 }
   ];
 }
 
@@ -390,44 +387,83 @@ function getPlayerDisplayName(player) {
 function getRelatedCharacters(characterId) {
   const relatedMap = new Map();
 
+  function pushSession(target, session) {
+    const exists = target.sessions.some(s => toId(s.id) === toId(session.id));
+    if (!exists) {
+      target.sessions.push({
+        id: session.id,
+        title: session.title || "無題セッション"
+      });
+    }
+  }
+
   getSessionsByCharacterId(characterId).forEach(session => {
     (session.charIds || []).forEach(cid => {
       if (toId(cid) === toId(characterId)) return;
+
       const c = getCharacterById(cid);
       if (!c) return;
 
-      if (!relatedMap.has(toId(c.id))) {
-        relatedMap.set(toId(c.id), {
+      const displayName = String(c.name || "").trim();
+      if (!displayName) return;
+
+      const key = `character:${displayName}`;
+
+      if (!relatedMap.has(key)) {
+        relatedMap.set(key, {
           type: "character",
+          displayName,
           character: c,
           sessions: []
         });
       }
 
-      relatedMap.get(toId(c.id)).sessions.push({
-        id: session.id,
-        title: session.title || "無題セッション"
-      });
+      const item = relatedMap.get(key);
+
+      if (!item.character?.url && c.url) item.character = c;
+      if ((!item.character?.images || !item.character.images.length) && c.images?.length) {
+        item.character = c;
+      }
+
+      pushSession(item, session);
     });
 
     (session.relatedPCs || []).forEach(row => {
-      const key = `pc:${row.id}`;
+      const normalized = normalizeRelatedPC(row);
+      const pcName = String(normalized.pc || "").trim();
+      if (!pcName) return;
+
+      const key = `related_pc:${pcName}`;
+
       if (!relatedMap.has(key)) {
         relatedMap.set(key, {
           type: "related_pc",
-          relatedPC: normalizeRelatedPC(row),
+          displayName: pcName,
+          relatedPC: {
+            player: normalized.player || "",
+            pc: pcName,
+            url: normalized.url || ""
+          },
           sessions: []
         });
       }
 
-      relatedMap.get(key).sessions.push({
-        id: session.id,
-        title: session.title || "無題セッション"
-      });
+      const item = relatedMap.get(key);
+
+      if (!item.relatedPC.player && normalized.player) {
+        item.relatedPC.player = normalized.player;
+      }
+      if (!item.relatedPC.url && normalized.url) {
+        item.relatedPC.url = normalized.url;
+      }
+
+      pushSession(item, session);
     });
   });
 
-  return [...relatedMap.values()];
+  return [...relatedMap.values()].sort((a, b) =>
+    String(a.displayName || "").localeCompare(String(b.displayName || ""), "ja")
+  );
 }
 
 window.__dataReady = loadAllData();

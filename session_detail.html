@@ -98,8 +98,10 @@
     <div id="editMode" class="hidden">
       <div class="card">
         <div class="row">
-          <select id="scenarioId" class="grow"></select>
+          <input id="scenarioNameInput" class="grow" placeholder="シナリオ名を入力" oninput="renderScenarioSuggestions()">
         </div>
+        <div id="scenarioSuggestions"></div>
+
         <div class="row" style="margin-top:10px;">
           <input id="kp" class="grow" placeholder="KP">
           <select id="status" class="grow">
@@ -165,18 +167,7 @@
     }
 
     function getSessionDisplayTitle() {
-      const scenario = getScenarioById(session.scenarioId);
-      return scenario?.title || session.title || "無題セッション";
-    }
-
-    function renderScenarioOptions() {
-      const select = document.getElementById("scenarioId");
-      select.innerHTML = `
-        <option value="">シナリオ未設定</option>
-        ${scenarios.map(s => `
-          <option value="${escapeHtml(s.id)}">${escapeHtml(s.title)}</option>
-        `).join("")}
-      `;
+      return session.title || getScenarioById(session.scenarioId)?.title || "無題セッション";
     }
 
     function toggleEditMode(forceValue) {
@@ -188,6 +179,43 @@
       if (!session) return;
       if (isEditMode) renderEditMode();
       else renderViewMode();
+    }
+
+    function getScenarioNameInputValue() {
+      return document.getElementById("scenarioNameInput").value.trim();
+    }
+
+    function renderScenarioSuggestions() {
+      const box = document.getElementById("scenarioSuggestions");
+      const keyword = getScenarioNameInputValue().toLowerCase();
+
+      if (!keyword) {
+        box.innerHTML = "";
+        return;
+      }
+
+      const matched = scenarios
+        .filter(s => String(s.title || "").toLowerCase().includes(keyword))
+        .slice(0, 10);
+
+      box.innerHTML = matched.length ? `
+        <div class="candidate-list">
+          ${matched.map(s => `
+            <div class="candidate-item" onclick="selectScenarioName('${String(s.title).replace(/'/g, "\\'")}')">
+              <div><b>${escapeHtml(s.title)}</b></div>
+              <div class="muted">
+                ${escapeHtml(s.system || "システム未設定")}
+                ${s.status ? " / " + escapeHtml(s.status) : ""}
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      ` : "";
+    }
+
+    function selectScenarioName(title) {
+      document.getElementById("scenarioNameInput").value = title;
+      renderScenarioSuggestions();
     }
 
     async function addLinkedCharacter(characterId) {
@@ -294,8 +322,11 @@
     async function saveSession() {
       if (!session) return;
 
-      session.scenarioId = document.getElementById("scenarioId").value ? toId(document.getElementById("scenarioId").value) : "";
-      session.title = getScenarioById(session.scenarioId)?.title || "無題セッション";
+      const scenarioName = getScenarioNameInputValue();
+      const matchedScenario = scenarios.find(s => String(s.title || "").trim() === scenarioName);
+
+      session.scenarioId = matchedScenario ? toId(matchedScenario.id) : "";
+      session.title = scenarioName || matchedScenario?.title || "無題セッション";
       session.kp = document.getElementById("kp").value.trim();
       session.status = document.getElementById("status").value;
       session.memo = document.getElementById("memo").value.trim();
@@ -333,9 +364,8 @@
       ensureLogUrls();
       ensureRelatedPCs();
 
-      const scenario = getScenarioById(session.scenarioId);
       document.getElementById("pageTitle").textContent = getSessionDisplayTitle();
-      document.getElementById("viewScenario").textContent = scenario?.title || "未設定";
+      document.getElementById("viewScenario").textContent = session.title || "未設定";
       document.getElementById("viewKp").textContent = session.kp || "未設定";
       document.getElementById("viewStatus").textContent = session.status || "予定";
       document.getElementById("viewDates").textContent = (session.dates || []).join(" / ") || "未設定";
@@ -367,15 +397,14 @@
     }
 
     function renderEditMode() {
-      renderScenarioOptions();
-
-      document.getElementById("scenarioId").value = session.scenarioId || "";
+      document.getElementById("scenarioNameInput").value = session.title || getScenarioById(session.scenarioId)?.title || "";
       document.getElementById("kp").value = session.kp || "";
       document.getElementById("status").value = session.status || "予定";
       document.getElementById("dates").value = (session.dates || []).join("\n");
       document.getElementById("logUrls").value = (session.logUrls || []).join("\n");
       document.getElementById("memo").value = session.memo || "";
 
+      renderScenarioSuggestions();
       renderCharacterSelector();
       renderRelatedPCsEditor();
     }

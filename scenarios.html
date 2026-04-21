@@ -112,6 +112,9 @@
         </select>
       </div>
       <div style="margin-top:10px;">
+        <input id="url" class="grow" placeholder="URL（参考ページ / 配布ページなど）">
+      </div>
+      <div style="margin-top:10px;">
         <textarea id="memo" placeholder="メモ"></textarea>
       </div>
       <div class="actions">
@@ -153,6 +156,7 @@
       document.getElementById("system").value = "";
       document.getElementById("status").value = "未通過";
       document.getElementById("playerCount").value = "";
+      document.getElementById("url").value = "";
       document.getElementById("memo").value = "";
     }
 
@@ -161,6 +165,7 @@
       const system = document.getElementById("system").value;
       const status = document.getElementById("status").value;
       const playerCount = document.getElementById("playerCount").value;
+      const url = document.getElementById("url").value.trim();
       const memo = document.getElementById("memo").value.trim();
 
       if (!title) {
@@ -175,7 +180,7 @@
         status,
         playerCount,
         memo,
-        url: ""
+        url
       };
 
       scenarios.unshift(newScenario);
@@ -242,6 +247,7 @@
           s.system,
           s.status,
           s.playerCount,
+          s.url || "",
           s.memo
         ].join(" ").toLowerCase();
         return text.includes(word);

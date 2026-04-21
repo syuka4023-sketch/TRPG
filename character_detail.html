@@ -27,7 +27,7 @@
     .img-box{
       display:inline-flex;flex-direction:column;gap:8px;margin:8px;vertical-align:top
     }
-    .q-item,.related-item,.view-item{
+    .q-item,.related-item,.view-item,.history-item{
       border:1px solid #ddd;border-radius:12px;padding:12px;margin-bottom:10px;background:#fafafa
     }
     .muted{color:#666;font-size:14px}
@@ -61,6 +61,11 @@
       <div class="card">
         <h3>画像</h3>
         <div id="viewImages"></div>
+      </div>
+
+      <div class="card">
+        <h3>通過したシナリオ</h3>
+        <div id="scenarioHistory"></div>
       </div>
 
       <div class="card">
@@ -138,6 +143,7 @@
     let character = null;
     let chartInstance = null;
     let isEditMode = false;
+    let characterId = null;
 
     async function resizeImageFile(file, maxSize = 1280, quality = 0.82) {
       const dataUrl = await new Promise((resolve, reject) => {
@@ -197,9 +203,8 @@
 
     async function deleteCharacter() {
       if (!confirm("このキャラクターを削除しますか？")) return;
-      const id = new URLSearchParams(location.search).get("id");
-      characters = characters.filter(c => toId(c.id) !== toId(id));
-      removeCharacterFromSessions(id);
+      characters = characters.filter(c => toId(c.id) !== toId(characterId));
+      removeCharacterFromSessions(characterId);
 
       if (await saveAll()) location.href = "characters.html";
     }
@@ -313,12 +318,17 @@
     }
 
     async function updateQuestionValue(index, value) {
-      character.questions[index].value = character.questions[index].type === "scale"
-        ? Number(value)
-        : value;
+      const q = character.questions[index];
+      if (!q) return;
+        
+      q.value = q.type === "scale" ? Number(value) : value;
       await saveAll(false);
-      renderQuestions();
-      drawChart();
+        
+      // テキスト入力中は再描画しない
+      if (q.type === "scale") {
+        renderQuestions();
+        drawChart();
+      }
     }
 
     async function deleteQuestion(index) {
@@ -357,14 +367,48 @@
       `).join("") || "質問なし";
     }
 
+    function getFirstDateValue(session) {
+      const first = Array.isArray(session.dates) && session.dates.length ? session.dates[0] : "";
+      const t = Date.parse(first);
+      return Number.isNaN(t) ? -Infinity : t;
+    }
+
+    function renderScenarioHistory() {
+      const participated = getSessionsByCharacterId(characterId)
+        .slice()
+        .sort((a, b) => getFirstDateValue(b) - getFirstDateValue(a));
+
+      document.getElementById("scenarioHistory").innerHTML = participated.map(s => {
+        const scenario = getScenarioById(s.scenarioId);
+        const title = scenario?.title || s.title || "無題セッション";
+        return `
+          <div class="history-item">
+            <div><b>${escapeHtml(title)}</b></div>
+            <div class="muted">日付: ${escapeHtml((s.dates || []).join(" / ") || "未設定")}</div>
+            <div class="muted">状態: ${escapeHtml(s.status || "予定")}</div>
+            <div class="muted">
+              <a href="session_detail.html?id=${encodeURIComponent(s.id)}">セッション詳細を見る</a>
+            </div>
+          </div>
+        `;
+      }).join("") || "通過履歴なし";
+    }
+
     function renderRelatedCharacters() {
-      const id = new URLSearchParams(location.search).get("id");
-      const related = getRelatedCharacters(id);
+      const related = getRelatedCharacters(characterId);
+
       document.getElementById("relatedCharacters").innerHTML = related.map(item => {
         if (item.type === "character") {
+          const charId = item.character?.id ? encodeURIComponent(item.character.id) : "";
           return `
             <div class="related-item">
-              <div><a href="character_detail.html?id=${encodeURIComponent(item.character.id)}"><b>${escapeHtml(item.character.name)}</b></a></div>
+              <div>
+                ${
+                  charId
+                    ? `<a href="character_detail.html?id=${charId}"><b>${escapeHtml(item.displayName || item.character?.name || "未設定")}</b></a>`
+                    : `<b>${escapeHtml(item.displayName || "未設定")}</b>`
+                }
+              </div>
               <div class="muted">一緒だったセッション:</div>
               <div>
                 ${item.sessions.map(s => `<span class="session-name">${escapeHtml(s.title)}</span>`).join("")}
@@ -375,10 +419,10 @@
 
         return `
           <div class="related-item">
-            <div><b>関連PC: ${escapeHtml(item.relatedPC.pc || "未設定")}</b></div>
-            <div class="muted">PL: ${escapeHtml(item.relatedPC.player || "未設定")}</div>
+            <div><b>関連PC: ${escapeHtml(item.displayName || item.relatedPC?.pc || "未設定")}</b></div>
+            <div class="muted">PL: ${escapeHtml(item.relatedPC?.player || "未設定")}</div>
             <div class="muted">
-              ${item.relatedPC.url ? `<a href="${escapeHtml(item.relatedPC.url)}" target="_blank" rel="noopener noreferrer">URLを開く</a>` : "URLなし"}
+              ${item.relatedPC?.url ? `<a href="${escapeHtml(item.relatedPC.url)}" target="_blank" rel="noopener noreferrer">URLを開く</a>` : "URLなし"}
             </div>
             <div class="muted" style="margin-top:8px;">一緒だったセッション:</div>
             <div>
@@ -419,6 +463,7 @@
         </div>
       `).join("") || "質問なし";
 
+      renderScenarioHistory();
       renderRelatedCharacters();
       drawChart();
     }
@@ -470,8 +515,8 @@
 
     async function init() {
       await window.__dataReady;
-      const id = new URLSearchParams(location.search).get("id");
-      character = getCharacterById(id);
+      characterId = new URLSearchParams(location.search).get("id");
+      character = getCharacterById(characterId);
 
       if (!character) {
         location.href = "characters.html";
