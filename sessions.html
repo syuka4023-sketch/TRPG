@@ -86,7 +86,7 @@
 
   <script src="data.js"></script>
   <script>
-    function createEmptySession() {
+    async function createEmptySession() {
       const s = {
         id: uid(),
         scenarioId: "",
@@ -100,7 +100,7 @@
         memo: ""
       };
       sessions.unshift(s);
-      const ok = saveAll();
+      const ok = await saveAll();
       if (!ok) {
         sessions.shift();
         return;
@@ -162,7 +162,12 @@
       }).join("") || `<div class="panel">セッションがありません。</div>`;
     }
 
-    render();
+    async function init() {
+      await window.__dataReady;
+      render();
+    }
+
+    init();
   </script>
 </body>
 </html>

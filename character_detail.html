@@ -37,16 +37,6 @@
     .session-name{
       display:inline-block;background:#eee;border-radius:999px;padding:4px 8px;margin:4px 6px 0 0;font-size:13px
     }
-    @media (max-width: 768px){
-  body{padding:12px}
-  .card,.panel{padding:14px;border-radius:14px}
-  .row{gap:8px}
-  input, textarea, select, button{
-    width:100%;
-    min-width:0;
-  }
-  .grow{min-width:0}
-}
   </style>
 </head>
 <body>
@@ -110,7 +100,7 @@
           <input type="file" id="fileInput" accept="image/*">
           <button type="button" onclick="addImageFromFile()">画像追加</button>
         </div>
-        <div class="muted" style="margin-top:8px;">大きすぎる画像は保存できない場合があります。うまく入らない場合は小さめ画像を使ってください。</div>
+        <div class="muted" style="margin-top:8px;">画像は保存前に自動縮小されます。</div>
         <div id="images" style="margin-top:10px;"></div>
       </div>
 
@@ -145,13 +135,42 @@
 
   <script src="data.js"></script>
   <script>
-    const id = new URLSearchParams(location.search).get("id");
-    const character = getCharacterById(id);
+    let character = null;
     let chartInstance = null;
     let isEditMode = false;
 
-    if (!character) {
-      location.href = "characters.html";
+    async function resizeImageFile(file, maxSize = 1280, quality = 0.82) {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const img = await new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = dataUrl;
+      });
+
+      let { width, height } = img;
+
+      if (width > height && width > maxSize) {
+        height = Math.round((height * maxSize) / width);
+        width = maxSize;
+      } else if (height >= width && height > maxSize) {
+        width = Math.round((width * maxSize) / height);
+        height = maxSize;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, width, height);
+
+      return canvas.toDataURL("image/jpeg", quality);
     }
 
     function toggleEditMode(forceValue) {
@@ -164,61 +183,64 @@
       else renderViewMode();
     }
 
-    function saveCharacter() {
+    async function saveCharacter() {
       character.name = document.getElementById("nameInput").value.trim() || "無名キャラ";
       character.url = document.getElementById("urlInput").value.trim();
       character.memo = document.getElementById("memo").value;
 
-      if (saveAll()) {
+      if (await saveAll()) {
         renderViewMode();
         toggleEditMode(false);
         alert("保存しました");
       }
     }
 
-    function deleteCharacter() {
+    async function deleteCharacter() {
       if (!confirm("このキャラクターを削除しますか？")) return;
+      const id = new URLSearchParams(location.search).get("id");
       characters = characters.filter(c => toId(c.id) !== toId(id));
       removeCharacterFromSessions(id);
 
-      if (saveAll()) location.href = "characters.html";
+      if (await saveAll()) location.href = "characters.html";
     }
 
-    function addImageFromFile() {
+    async function addImageFromFile() {
       const file = document.getElementById("fileInput").files[0];
       if (!file) {
         alert("画像を選択してください");
         return;
       }
 
-      const reader = new FileReader();
-      reader.onload = () => {
+      try {
+        const resized = await resizeImageFile(file, 1280, 0.82);
         character.images = character.images || [];
-        character.images.push(reader.result);
+        character.images.push(resized);
 
-        const ok = saveAll(false);
+        const ok = await saveAll(false);
         if (ok) {
           document.getElementById("fileInput").value = "";
           renderImages();
         } else {
           character.images.pop();
         }
-      };
-      reader.readAsDataURL(file);
+      } catch (e) {
+        console.error(e);
+        alert("画像の縮小または保存に失敗しました");
+      }
     }
 
-    function deleteImage(index) {
+    async function deleteImage(index) {
       if (!confirm("この画像を削除しますか？")) return;
       character.images.splice(index, 1);
-      saveAll(false);
+      await saveAll(false);
       renderImages();
     }
 
-    function moveImage(index, dir) {
+    async function moveImage(index, dir) {
       const next = index + dir;
       if (next < 0 || next >= character.images.length) return;
       [character.images[index], character.images[next]] = [character.images[next], character.images[index]];
-      saveAll(false);
+      await saveAll(false);
       renderImages();
     }
 
@@ -236,7 +258,7 @@
       `).join("") || "画像なし";
     }
 
-    function addTag() {
+    async function addTag() {
       const input = document.getElementById("tagInput");
       const val = input.value.trim();
       if (!val) return;
@@ -244,15 +266,15 @@
       character.tags = character.tags || [];
       if (!character.tags.includes(val)) {
         character.tags.push(val);
-        saveAll(false);
+        await saveAll(false);
       }
       input.value = "";
       renderTags();
     }
 
-    function deleteTag(index) {
+    async function deleteTag(index) {
       character.tags.splice(index, 1);
-      saveAll(false);
+      await saveAll(false);
       renderTags();
     }
 
@@ -266,7 +288,7 @@
         `).join("") || "タグなし";
     }
 
-    function addQuestion() {
+    async function addQuestion() {
       const q = document.getElementById("newQuestionText").value.trim();
       const type = document.getElementById("newQuestionType").value;
       if (!q) return;
@@ -278,31 +300,31 @@
         value: type === "scale" ? 3 : ""
       });
 
-      saveAll(false);
+      await saveAll(false);
       document.getElementById("newQuestionText").value = "";
       renderQuestions();
       drawChart();
     }
 
-    function updateQuestionText(index, value) {
+    async function updateQuestionText(index, value) {
       character.questions[index].q = value;
-      saveAll(false);
+      await saveAll(false);
       drawChart();
     }
 
-    function updateQuestionValue(index, value) {
+    async function updateQuestionValue(index, value) {
       character.questions[index].value = character.questions[index].type === "scale"
         ? Number(value)
         : value;
-      saveAll(false);
+      await saveAll(false);
       renderQuestions();
       drawChart();
     }
 
-    function deleteQuestion(index) {
+    async function deleteQuestion(index) {
       if (!confirm("この質問を削除しますか？")) return;
       character.questions.splice(index, 1);
-      saveAll(false);
+      await saveAll(false);
       renderQuestions();
       drawChart();
     }
@@ -336,6 +358,7 @@
     }
 
     function renderRelatedCharacters() {
+      const id = new URLSearchParams(location.search).get("id");
       const related = getRelatedCharacters(id);
       document.getElementById("relatedCharacters").innerHTML = related.map(item => {
         if (item.type === "character") {
@@ -445,10 +468,21 @@
       });
     }
 
-    if (character) {
+    async function init() {
+      await window.__dataReady;
+      const id = new URLSearchParams(location.search).get("id");
+      character = getCharacterById(id);
+
+      if (!character) {
+        location.href = "characters.html";
+        return;
+      }
+
       renderViewMode();
       toggleEditMode(false);
     }
+
+    init();
   </script>
 </body>
 </html>

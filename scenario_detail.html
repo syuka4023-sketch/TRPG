@@ -23,15 +23,15 @@
     .hidden{display:none}
     a{color:#222}
     @media (max-width: 768px){
-  body{padding:12px}
-  .card,.panel{padding:14px;border-radius:14px}
-  .row{gap:8px}
-  input, textarea, select, button{
-    width:100%;
-    min-width:0;
-  }
-  .grow{min-width:0}
-}
+      body{padding:12px}
+      .card{padding:14px;border-radius:14px}
+      .row{gap:8px}
+      input, textarea, select, button{
+        width:100%;
+        min-width:0;
+      }
+      .grow{min-width:0}
+    }
   </style>
 </head>
 <body>
@@ -93,9 +93,9 @@
           <textarea id="memo" placeholder="メモ"></textarea>
         </div>
         <div class="actions">
-          <button onclick="saveScenario()">保存</button>
-          <button onclick="createSession()">このシナリオでセッション作成</button>
-          <button onclick="deleteScenario()">削除</button>
+          <button type="button" onclick="saveScenario()">保存</button>
+          <button type="button" onclick="createSession()">このシナリオでセッション作成</button>
+          <button type="button" onclick="deleteScenario()">削除</button>
         </div>
       </div>
     </div>
@@ -103,13 +103,9 @@
 
   <script src="data.js"></script>
   <script>
-    const id = new URLSearchParams(location.search).get("id");
-    const scenario = getScenarioById(id);
+    let scenario = null;
     let isEditMode = false;
-
-    if (!scenario) {
-      location.href = "scenarios.html";
-    }
+    let scenarioId = null;
 
     function toggleEditMode(forceValue) {
       isEditMode = typeof forceValue === "boolean" ? forceValue : !isEditMode;
@@ -117,11 +113,14 @@
       document.getElementById("editMode").classList.toggle("hidden", !isEditMode);
       document.getElementById("editToggleBtn").textContent = isEditMode ? "表示に戻る" : "編集する";
 
+      if (!scenario) return;
       if (isEditMode) renderEditMode();
       else renderViewMode();
     }
 
-    function saveScenario() {
+    async function saveScenario() {
+      if (!scenario) return;
+
       scenario.title = document.getElementById("title").value.trim() || "無題シナリオ";
       scenario.system = document.getElementById("system").value;
       scenario.status = document.getElementById("status").value;
@@ -129,14 +128,16 @@
       scenario.url = document.getElementById("url").value.trim();
       scenario.memo = document.getElementById("memo").value.trim();
 
-      if (saveAll()) {
+      if (await saveAll()) {
         renderViewMode();
         toggleEditMode(false);
         alert("保存しました");
       }
     }
 
-    function createSession() {
+    async function createSession() {
+      if (!scenario) return;
+
       const newSession = {
         id: uid(),
         scenarioId: toId(scenario.id),
@@ -151,23 +152,27 @@
       };
 
       sessions.unshift(newSession);
-      if (saveAll()) {
+      if (await saveAll()) {
         location.href = `session_detail.html?id=${encodeURIComponent(newSession.id)}`;
+      } else {
+        sessions.shift();
       }
     }
 
-    function deleteScenario() {
+    async function deleteScenario() {
+      if (!scenario) return;
       if (!confirm(`「${scenario.title}」を削除しますか？\n関連セッションのシナリオ紐付けは外れます。`)) return;
 
-      scenarios = scenarios.filter(s => toId(s.id) !== toId(id));
-      removeScenarioFromSessions(id);
-      if (saveAll()) {
+      scenarios = scenarios.filter(s => toId(s.id) !== toId(scenarioId));
+      removeScenarioFromSessions(scenarioId);
+
+      if (await saveAll()) {
         location.href = "scenarios.html";
       }
     }
 
     function renderSessionList() {
-      const list = getSessionsByScenarioId(id);
+      const list = getSessionsByScenarioId(scenarioId);
       document.getElementById("sessionList").innerHTML = list.map(s => `
         <div class="session-item">
           <div><a href="session_detail.html?id=${encodeURIComponent(s.id)}"><b>${escapeHtml(s.title || "無題セッション")}</b></a></div>
@@ -180,6 +185,8 @@
     }
 
     function renderViewMode() {
+      if (!scenario) return;
+
       document.getElementById("pageTitle").textContent = scenario.title || "シナリオ詳細";
       document.getElementById("viewTitle").textContent = scenario.title || "無題シナリオ";
       document.getElementById("viewSystem").textContent = scenario.system || "未設定";
@@ -193,6 +200,8 @@
     }
 
     function renderEditMode() {
+      if (!scenario) return;
+
       document.getElementById("title").value = scenario.title || "";
       document.getElementById("system").value = scenario.system || "";
       document.getElementById("status").value = scenario.status || "未通過";
@@ -201,10 +210,21 @@
       document.getElementById("memo").value = scenario.memo || "";
     }
 
-    if (scenario) {
+    async function init() {
+      await window.__dataReady;
+      scenarioId = new URLSearchParams(location.search).get("id");
+      scenario = getScenarioById(scenarioId);
+
+      if (!scenario) {
+        location.href = "scenarios.html";
+        return;
+      }
+
       renderViewMode();
       toggleEditMode(false);
     }
+
+    init();
   </script>
 </body>
 </html>

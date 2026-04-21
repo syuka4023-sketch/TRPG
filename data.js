@@ -1,3 +1,7 @@
+const DB_NAME = "trpg_manager_db";
+const DB_VERSION = 1;
+const STORE_NAME = "app_state";
+
 const STORAGE_KEYS = {
   scenarios: "scenarios",
   characters: "characters",
@@ -5,18 +9,11 @@ const STORAGE_KEYS = {
   backup: "backup"
 };
 
-function readJSON(key, fallback = []) {
-  try {
-    return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
-  } catch (e) {
-    console.error(`${key} の読込に失敗`, e);
-    return Array.isArray(fallback) ? [...fallback] : fallback;
-  }
-}
+let scenarios = [];
+let characters = [];
+let sessions = [];
 
-let scenarios = readJSON(STORAGE_KEYS.scenarios, []);
-let characters = readJSON(STORAGE_KEYS.characters, []);
-let sessions = readJSON(STORAGE_KEYS.sessions, []);
+let dbPromise = null;
 
 function uid() {
   if (window.crypto?.randomUUID) return window.crypto.randomUUID();
@@ -33,6 +30,10 @@ function escapeHtml(value) {
   }[s]));
 }
 
+function toId(value) {
+  return String(value ?? "");
+}
+
 function defaultQuestions() {
   return [
     { id: uid(), q: "名前とその由来は？", type: "text", value: "" },
@@ -45,10 +46,6 @@ function defaultQuestions() {
     { id: uid(), q: "正義感", type: "scale", value: 3 },
     { id: uid(), q: "狂気", type: "scale", value: 3 }
   ];
-}
-
-function toId(value) {
-  return String(value ?? "");
 }
 
 function normalizePlayer(player) {
@@ -157,8 +154,105 @@ function normalizeData() {
       memo: s.memo || ""
     };
   });
+}
 
-  saveAll(false);
+function getDB() {
+  if (dbPromise) return dbPromise;
+
+  dbPromise = new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onupgradeneeded = event => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: "key" });
+      }
+    };
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+
+  return dbPromise;
+}
+
+async function idbGet(key) {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.get(key);
+
+    req.onsuccess = () => resolve(req.result ? req.result.value : null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbSet(key, value) {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    store.put({ key, value });
+
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
+
+async function idbDelete(key) {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    store.delete(key);
+
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
+
+function readLegacyJSON(key, fallback = []) {
+  try {
+    return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
+  } catch (e) {
+    console.error(`${key} の旧localStorage読込に失敗`, e);
+    return Array.isArray(fallback) ? [...fallback] : fallback;
+  }
+}
+
+async function migrateFromLocalStorageIfNeeded() {
+  const migrated = await idbGet("migrated_from_localstorage");
+  if (migrated) return;
+
+  const legacyScenarios = readLegacyJSON(STORAGE_KEYS.scenarios, []);
+  const legacyCharacters = readLegacyJSON(STORAGE_KEYS.characters, []);
+  const legacySessions = readLegacyJSON(STORAGE_KEYS.sessions, []);
+  const legacyBackup = readLegacyJSON(STORAGE_KEYS.backup, []);
+
+  const hasLegacyData =
+    legacyScenarios.length || legacyCharacters.length || legacySessions.length || legacyBackup.length;
+
+  if (hasLegacyData) {
+    await idbSet(STORAGE_KEYS.scenarios, legacyScenarios);
+    await idbSet(STORAGE_KEYS.characters, legacyCharacters);
+    await idbSet(STORAGE_KEYS.sessions, legacySessions);
+    await idbSet(STORAGE_KEYS.backup, legacyBackup);
+  }
+
+  await idbSet("migrated_from_localstorage", true);
+}
+
+async function loadAllData() {
+  await migrateFromLocalStorageIfNeeded();
+
+  scenarios = (await idbGet(STORAGE_KEYS.scenarios)) || [];
+  characters = (await idbGet(STORAGE_KEYS.characters)) || [];
+  sessions = (await idbGet(STORAGE_KEYS.sessions)) || [];
+
+  normalizeData();
 }
 
 function makeBackupSlim() {
@@ -172,32 +266,31 @@ function makeBackupSlim() {
   };
 }
 
-function saveAll(withBackup = true) {
+async function saveAll(withBackup = true) {
   try {
-    localStorage.setItem(STORAGE_KEYS.scenarios, JSON.stringify(scenarios));
-    localStorage.setItem(STORAGE_KEYS.characters, JSON.stringify(characters));
-    localStorage.setItem(STORAGE_KEYS.sessions, JSON.stringify(sessions));
-
     if (withBackup) {
-      let backups = readJSON(STORAGE_KEYS.backup, []);
+      let backups = (await idbGet(STORAGE_KEYS.backup)) || [];
       backups.unshift({
         date: new Date().toLocaleString("ja-JP"),
         data: makeBackupSlim()
       });
       backups = backups.slice(0, 5);
-      localStorage.setItem(STORAGE_KEYS.backup, JSON.stringify(backups));
+      await idbSet(STORAGE_KEYS.backup, backups);
     }
 
+    await idbSet(STORAGE_KEYS.scenarios, scenarios);
+    await idbSet(STORAGE_KEYS.characters, characters);
+    await idbSet(STORAGE_KEYS.sessions, sessions);
     return true;
   } catch (e) {
-    console.error("保存に失敗しました", e);
-    alert("保存に失敗しました。画像サイズが大きすぎる可能性があります。別の小さめの画像で試してください。");
+    console.error("IndexedDB 保存に失敗しました", e);
+    alert("保存に失敗しました。ブラウザのストレージ制限、または保存データが大きすぎる可能性があります。");
     return false;
   }
 }
 
-function restoreBackup(index) {
-  const backups = readJSON(STORAGE_KEYS.backup, []);
+async function restoreBackup(index) {
+  const backups = (await idbGet(STORAGE_KEYS.backup)) || [];
   if (!backups[index]) return false;
   if (!confirm("このバックアップを復元しますか？")) return false;
 
@@ -205,8 +298,55 @@ function restoreBackup(index) {
   characters = backups[index].data.characters || [];
   sessions = backups[index].data.sessions || [];
   normalizeData();
+  await saveAll(false);
   location.reload();
   return true;
+}
+
+async function exportAllData() {
+  const data = {
+    scenarios,
+    characters,
+    sessions,
+    exportedAt: new Date().toISOString()
+  };
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `trpg_backup_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importAllDataFromFile(file, onDone) {
+  const reader = new FileReader();
+
+  reader.onload = async () => {
+    try {
+      const data = JSON.parse(reader.result);
+
+      if (!data || typeof data !== "object") {
+        throw new Error("JSON形式が不正です");
+      }
+
+      scenarios = Array.isArray(data.scenarios) ? data.scenarios : [];
+      characters = Array.isArray(data.characters) ? data.characters : [];
+      sessions = Array.isArray(data.sessions) ? data.sessions : [];
+
+      normalizeData();
+      await saveAll(false);
+
+      if (typeof onDone === "function") onDone(true);
+    } catch (e) {
+      console.error(e);
+      alert("バックアップの読み込みに失敗しました");
+      if (typeof onDone === "function") onDone(false);
+    }
+  };
+
+  reader.readAsText(file);
 }
 
 function getScenarioById(id) {
@@ -245,54 +385,6 @@ function getSessionsByScenarioId(scenarioId) {
 
 function getPlayerDisplayName(player) {
   return normalizePlayer(player).name || "無名PL";
-}
-function exportAllData() {
-  const data = {
-    scenarios,
-    characters,
-    sessions,
-    exportedAt: new Date().toISOString()
-  };
-
-  const blob = new Blob(
-    [JSON.stringify(data, null, 2)],
-    { type: "application/json" }
-  );
-
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `trpg_backup_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-function importAllDataFromFile(file, onDone) {
-  const reader = new FileReader();
-
-  reader.onload = () => {
-    try {
-      const data = JSON.parse(reader.result);
-
-      if (!data || typeof data !== "object") {
-        throw new Error("JSON形式が不正です");
-      }
-
-      scenarios = Array.isArray(data.scenarios) ? data.scenarios : [];
-      characters = Array.isArray(data.characters) ? data.characters : [];
-      sessions = Array.isArray(data.sessions) ? data.sessions : [];
-
-      normalizeData();
-
-      if (typeof onDone === "function") onDone(true);
-    } catch (e) {
-      console.error(e);
-      alert("バックアップの読み込みに失敗しました");
-      if (typeof onDone === "function") onDone(false);
-    }
-  };
-
-  reader.readAsText(file);
 }
 
 function getRelatedCharacters(characterId) {
@@ -338,4 +430,4 @@ function getRelatedCharacters(characterId) {
   return [...relatedMap.values()];
 }
 
-normalizeData();
+window.__dataReady = loadAllData();

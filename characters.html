@@ -90,7 +90,7 @@
 
   <script src="data.js"></script>
   <script>
-    function addCharacter() {
+    async function addCharacter() {
       const name = prompt("キャラ名");
       if (!name || !name.trim()) return;
 
@@ -105,7 +105,7 @@
       };
 
       characters.unshift(c);
-      const ok = saveAll();
+      const ok = await saveAll();
       if (!ok) {
         characters.shift();
         return;
@@ -161,7 +161,12 @@
       `).join("") || `<div class="panel">キャラクターがありません。</div>`;
     }
 
-    render();
+    async function init() {
+      await window.__dataReady;
+      render();
+    }
+
+    init();
   </script>
 </body>
 </html>

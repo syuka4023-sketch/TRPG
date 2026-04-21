@@ -115,8 +115,8 @@
         <textarea id="memo" placeholder="メモ"></textarea>
       </div>
       <div class="actions">
-        <button onclick="addScenario()">追加する</button>
-        <button onclick="closeAddForm()">閉じる</button>
+        <button type="button" onclick="addScenario()">追加する</button>
+        <button type="button" onclick="closeAddForm()">閉じる</button>
       </div>
     </div>
 
@@ -156,7 +156,7 @@
       document.getElementById("memo").value = "";
     }
 
-    function addScenario() {
+    async function addScenario() {
       const title = document.getElementById("title").value.trim();
       const system = document.getElementById("system").value;
       const status = document.getElementById("status").value;
@@ -179,7 +179,7 @@
       };
 
       scenarios.unshift(newScenario);
-      const ok = saveAll();
+      const ok = await saveAll();
       if (!ok) {
         scenarios.shift();
         return;
@@ -262,7 +262,12 @@
       `).join("") || `<div class="panel">シナリオがありません。</div>`;
     }
 
-    render();
+    async function init() {
+      await window.__dataReady;
+      render();
+    }
+
+    init();
   </script>
 </body>
 </html>
