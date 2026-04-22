@@ -37,6 +37,28 @@
     .session-name{
       display:inline-block;background:#eee;border-radius:999px;padding:4px 8px;margin:4px 6px 0 0;font-size:13px
     }
+    @media (max-width: 768px){
+      body{padding:12px}
+      .card{padding:14px;border-radius:14px}
+      .row{gap:8px}
+      input, textarea, select, button{
+        width:100%;
+        min-width:0;
+      }
+      .grow{min-width:0}
+    }
+
+    .tag-suggestion-item{
+      padding:10px 12px;
+      border-top:1px solid #eee;
+      cursor:pointer;
+    }
+    .tag-suggestion-item:first-child{
+      border-top:none;
+    }
+    .tag-suggestion-item:hover{
+      background:#f5f5f5;
+    }
   </style>
 </head>
 <body>
@@ -95,7 +117,14 @@
           <button type="button" onclick="deleteCharacter()">削除</button>
         </div>
         <div style="margin-top:10px;">
-          <input id="urlInput" class="grow" placeholder="URL（立ち絵 / キャラシ / 紹介ページなど）">
+          <input id="urlInput" class="grow" placeholder="URL（いあキャラ / ゆとシート / 紹介ページなど）">
+        </div>
+        <div style="margin-top:10px;">
+          <input id="imageUrlInput" class="grow" placeholder="画像URLを直接貼る">
+        </div>
+        <div class="actions">
+          <button type="button" onclick="importImageFromUrlInput()">URLから画像取得を試す</button>
+          <button type="button" onclick="importImageFromImageUrl()">画像URLから取り込む</button>
         </div>
       </div>
 
@@ -112,9 +141,10 @@
       <div class="card">
         <h3>タグ</h3>
         <div class="row">
-          <input id="tagInput" class="grow" placeholder="タグ名">
+          <input id="tagInput" class="grow" placeholder="タグ名" oninput="renderTagSuggestions()">
           <button type="button" onclick="addTag()">タグ追加</button>
         </div>
+        <div id="tagSuggestions" style="margin-top:10px;"></div>
         <div id="tags" style="margin-top:10px;"></div>
       </div>
 
@@ -145,7 +175,7 @@
     let isEditMode = false;
     let characterId = null;
 
-    async function resizeImageFile(file, maxSize = 1280, quality = 0.82) {
+    async function resizeImageFile(file, maxSize = 800, quality = 0.68) {
       const dataUrl = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
@@ -160,6 +190,10 @@
         image.src = dataUrl;
       });
 
+      return resizeImageFromImageElement(img, maxSize, quality);
+    }
+
+    async function resizeImageFromImageElement(img, maxSize = 800, quality = 0.68) {
       let { width, height } = img;
 
       if (width > height && width > maxSize) {
@@ -174,6 +208,9 @@
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext("2d");
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
       ctx.drawImage(img, 0, 0, width, height);
 
       return canvas.toDataURL("image/jpeg", quality);
@@ -192,6 +229,7 @@
     async function saveCharacter() {
       character.name = document.getElementById("nameInput").value.trim() || "無名キャラ";
       character.url = document.getElementById("urlInput").value.trim();
+      character.imageUrl = document.getElementById("imageUrlInput").value.trim();
       character.memo = document.getElementById("memo").value;
 
       if (await saveAll()) {
@@ -217,7 +255,7 @@
       }
 
       try {
-        const resized = await resizeImageFile(file, 1280, 0.82);
+        const resized = await resizeImageFile(file, 640, 0.6);
         character.images = character.images || [];
         character.images.push(resized);
 
@@ -275,12 +313,14 @@
       }
       input.value = "";
       renderTags();
+      renderTagSuggestions();
     }
 
     async function deleteTag(index) {
       character.tags.splice(index, 1);
       await saveAll(false);
       renderTags();
+      renderTagSuggestions();
     }
 
     function renderTags() {
@@ -320,11 +360,10 @@
     async function updateQuestionValue(index, value) {
       const q = character.questions[index];
       if (!q) return;
-        
+
       q.value = q.type === "scale" ? Number(value) : value;
       await saveAll(false);
-        
-      // テキスト入力中は再描画しない
+
       if (q.type === "scale") {
         renderQuestions();
         drawChart();
@@ -448,11 +487,20 @@
       document.getElementById("viewTags").textContent = (character.tags || []).join(" / ") || "なし";
       document.getElementById("viewMemo").textContent = character.memo || "未設定";
 
-      document.getElementById("viewImages").innerHTML = character.images.map(img => `
-        <div class="img-box">
-          <img class="thumb" src="${img}" alt="">
-        </div>
-      `).join("") || "画像なし";
+      document.getElementById("viewImages").innerHTML =
+        character.images && character.images.length
+          ? character.images.map(img => `
+              <div class="img-box">
+                <img class="thumb" src="${img}" alt="">
+              </div>
+            `).join("")
+          : (
+              character.imageUrl
+                ? `<div class="muted">画像未登録。<a href="${escapeHtml(character.imageUrl)}" target="_blank" rel="noopener noreferrer">画像URLを開く</a></div>`
+                : character.url
+                  ? `<div class="muted">画像取得失敗。<a href="${escapeHtml(character.url)}" target="_blank" rel="noopener noreferrer">URLを開く</a></div>`
+                  : "画像なし"
+            );
 
       document.getElementById("viewQuestions").innerHTML = character.questions.map(q => `
         <div class="q-item">
@@ -477,16 +525,23 @@
 
       document.getElementById("nameInput").value = character.name || "";
       document.getElementById("urlInput").value = character.url || "";
+      document.getElementById("imageUrlInput").value = character.imageUrl || "";
       document.getElementById("memo").value = character.memo || "";
 
       renderImages();
       renderTags();
       renderQuestions();
+      renderTagSuggestions();
     }
 
     function drawChart() {
       const canvas = document.getElementById("chart");
-      const scales = (character.questions || []).filter(q => q.type === "scale");
+      const scales = (character.questions || [])
+        .filter(q => q.type === "scale")
+        .sort((a, b) => {
+          const order = ["好奇心", "世話焼き", "野蛮度", "協調性", "素直さ"];
+          return order.indexOf(a.q) - order.indexOf(b.q);
+        });
 
       if (chartInstance) chartInstance.destroy();
       if (scales.length === 0) return;
@@ -513,6 +568,116 @@
       });
     }
 
+    function guessImageCandidatesFromPageUrl(url) {
+      const u = String(url || "").trim();
+      if (!u) return [];
+
+      const candidates = [];
+      candidates.push(u + (u.includes("?") ? "&" : "?") + "image=1");
+      candidates.push(u.replace(/\/$/, "") + "/image");
+      candidates.push(u.replace(/\/$/, "") + "/img");
+      candidates.push(u.replace(/\/$/, "") + "/portrait");
+      candidates.push(u.replace(/\/$/, "") + "/icon");
+
+      return [...new Set(candidates)];
+    }
+
+    async function loadImageElement(url) {
+      return await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.referrerPolicy = "no-referrer";
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("画像読み込み失敗"));
+        img.src = url;
+      });
+    }
+
+    async function tryImportImageFromUrl(url, direct = false) {
+      const targetUrls = direct
+        ? [String(url || "").trim()].filter(Boolean)
+        : guessImageCandidatesFromPageUrl(url);
+
+      for (const candidate of targetUrls) {
+        try {
+          const img = await loadImageElement(candidate);
+          const resized = await resizeImageFromImageElement(img, 800, 0.68);
+          return { ok: true, imageDataUrl: resized, imageUrl: candidate };
+        } catch (e) {
+        }
+      }
+
+      return { ok: false, imageDataUrl: null, imageUrl: null };
+    }
+
+    async function importImageFromUrlInput() {
+      const url = document.getElementById("urlInput").value.trim();
+      if (!url) {
+        alert("URLを入力してください");
+        return;
+      }
+
+      character.url = url;
+
+      const result = await tryImportImageFromUrl(url, false);
+
+      if (result.ok && result.imageDataUrl) {
+        character.images = Array.isArray(character.images) ? character.images : [];
+        character.images.unshift(result.imageDataUrl);
+
+        const ok = await saveAll(false);
+        if (!ok) {
+          character.images.shift();
+          return;
+        }
+
+        alert("画像取得に成功しました");
+        renderImages();
+        renderViewMode();
+        return;
+      }
+
+      const ok = await saveAll(false);
+      if (!ok) return;
+
+      alert("画像取得はできませんでした。URLのみ保存しました。");
+      renderViewMode();
+    }
+
+    async function importImageFromImageUrl() {
+      const imageUrl = document.getElementById("imageUrlInput").value.trim();
+      if (!imageUrl) {
+        alert("画像URLを入力してください");
+        return;
+      }
+
+      character.imageUrl = imageUrl;
+
+      const result = await tryImportImageFromUrl(imageUrl, true);
+
+      if (result.ok && result.imageDataUrl) {
+        character.images = Array.isArray(character.images) ? character.images : [];
+        character.images.unshift(result.imageDataUrl);
+
+        const ok = await saveAll(false);
+        if (!ok) {
+          character.images.shift();
+          return;
+        }
+
+        alert("画像URLから取り込みました");
+        renderImages();
+        renderViewMode();
+        return;
+      }
+
+      const ok = await saveAll(false);
+      if (!ok) return;
+
+      alert("画像取得はできませんでした。画像URLのみ保存しました。");
+      renderViewMode();
+    }
+
     async function init() {
       await window.__dataReady;
       characterId = new URLSearchParams(location.search).get("id");
@@ -525,6 +690,51 @@
 
       renderViewMode();
       toggleEditMode(false);
+    }
+    function getAllExistingTags() {
+  const tagSet = new Set();
+
+  (characters || []).forEach(c => {
+    (c.tags || []).forEach(tag => {
+      const t = String(tag || "").trim();
+      if (t) tagSet.add(t);
+    });
+  });
+
+  return [...tagSet].sort((a, b) => a.localeCompare(b, "ja"));
+}
+
+function selectTagSuggestion(tag) {
+      document.getElementById("tagInput").value = tag;
+      renderTagSuggestions();
+    }
+
+    function renderTagSuggestions() {
+      const input = document.getElementById("tagInput");
+      const box = document.getElementById("tagSuggestions");
+      if (!input || !box) return;
+
+      const keyword = String(input.value || "").trim().toLowerCase();
+      if (!keyword) {
+        box.innerHTML = "";
+        return;
+      }
+    
+      const currentTags = new Set((character.tags || []).map(t => String(t || "").trim()));
+      const matched = getAllExistingTags()
+        .filter(tag => tag.toLowerCase().includes(keyword))
+        .filter(tag => !currentTags.has(tag))
+        .slice(0, 10);
+    
+      box.innerHTML = matched.length ? `
+        <div class="candidate-list">
+          ${matched.map(tag => `
+            <div class="tag-suggestion-item" onclick="selectTagSuggestion('${String(tag).replace(/'/g, "\\'")}')">
+              ${escapeHtml(tag)}
+            </div>
+          `).join("")}
+        </div>
+      ` : "";
     }
 
     init();

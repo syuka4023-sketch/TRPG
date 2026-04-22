@@ -98,6 +98,7 @@ function normalizeData() {
     id: toId(c.id || uid()),
     name: c.name || "新規キャラクター",
     url: c.url || "",
+    imageUrl: c.imageUrl || "",
     images: Array.isArray(c.images) ? c.images.filter(Boolean) : [],
     tags: Array.isArray(c.tags) ? c.tags.filter(Boolean) : [],
     memo: c.memo || "",

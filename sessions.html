@@ -54,6 +54,14 @@
         font-size:15px;
       }
     }
+
+    .meta{
+      font-size:12px;
+      color:#555;
+      margin-top:6px;
+      font-weight:normal;
+      line-height:1.4;
+    }
   </style>
 </head>
 <body>
@@ -195,12 +203,20 @@
       document.getElementById("list").innerHTML = sorted.map(s => {
         const scenario = getScenarioById(s.scenarioId);
         const label = scenario?.title || s.title || "無題セッション";
+
+        const dateText = (s.dates && s.dates.length)
+    ? s.dates[0]
+    : "日付未設定";
+
         return `
           <div class="icon-card" onclick="location.href='session_detail.html?id=${encodeURIComponent(s.id)}'">
-            ${escapeHtml(label)}
+            <div>
+              <div>${escapeHtml(label)}</div>
+              <div class="meta">${escapeHtml(dateText)}</div>
+            </div>
           </div>
         `;
-      }).join("") || `<div class="panel">セッションがありません。</div>`;
+      }).join("")|| `<div class="panel">セッションがありません。</div>`;
     }
 
     async function init() {
