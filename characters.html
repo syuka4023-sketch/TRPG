@@ -65,6 +65,7 @@
         border-radius:12px;
       }
     }
+    .muted{color:#666;font-size:13px;margin-bottom:10px}
   </style>
 </head>
 <body>
@@ -73,6 +74,7 @@
 
     <div class="panel">
       <h2>キャラ一覧</h2>
+      <div class="muted" id="countText">0件</div>
       <div class="row">
         <input id="search" class="grow" placeholder="検索（名前・タグ・メモ・URL）" oninput="render()">
         <select id="sortBy" onchange="render()">
@@ -152,6 +154,9 @@
       });
 
       const sorted = sortCharacters(filtered, sortBy);
+
+      document.getElementById("countText").textContent =
+       `表示 ${sorted.length}件 / 全 ${characters.length}件`;
 
       document.getElementById("list").innerHTML = sorted.map(c => `
         <div class="icon-card" onclick="location.href='character_detail.html?id=${encodeURIComponent(c.id)}'">

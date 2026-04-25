@@ -62,6 +62,8 @@
       font-weight:normal;
       line-height:1.4;
     }
+
+    .muted{color:#666;font-size:13px;margin-bottom:10px}
   </style>
 </head>
 <body>
@@ -70,6 +72,7 @@
 
     <div class="panel">
       <h2>セッション一覧</h2>
+      <div class="muted" id="countText">0件</div>
       <div class="row">
         <input id="search" class="grow" placeholder="検索（タイトル / KP / キャラ）" oninput="render()">
         <select id="statusFilter" onchange="render()">
@@ -199,6 +202,9 @@
       });
 
       const sorted = sortSessions(filtered, sortBy);
+
+      document.getElementById("countText").textContent =
+  `表示 ${sorted.length}件 / 全 ${sessions.length}件`;
 
       document.getElementById("list").innerHTML = sorted.map(s => {
         const scenario = getScenarioById(s.scenarioId);

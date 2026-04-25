@@ -73,6 +73,7 @@
         width:100%;
       }
     }
+    .muted{color:#666;font-size:13px;margin-top:8px}
   </style>
 </head>
 <body>
@@ -82,6 +83,7 @@
     <div class="panel">
       <div class="row" style="align-items:center;">
         <h2 style="margin:0;flex:1;">シナリオ一覧</h2>
+        <div class="muted" id="countText">0件</div>
         <button onclick="toggleAddForm()">＋ シナリオ追加</button>
       </div>
     </div>
@@ -254,6 +256,9 @@
       });
 
       const sorted = sortScenarios(filtered, sortBy);
+
+      document.getElementById("countText").textContent =
+  `表示 ${sorted.length}件 / 全 ${scenarios.length}件`;
 
       document.getElementById("list").innerHTML = sorted.map(s => `
         <div class="icon-card ${statusClass(s.status)}" onclick="location.href='scenario_detail.html?id=${encodeURIComponent(s.id)}'">

@@ -77,6 +77,7 @@
     <div class="card">
       <h1>TRPG管理ツール</h1>
       <p>シナリオ・セッション・キャラクターをまとめて管理できます。</p>
+      <div class="muted" id="countSummary">件数を読み込み中...</div>
       <div class="muted" id="swStatus">アプリ更新状態を確認中...</div>
     </div>
 
@@ -118,6 +119,14 @@
 
   <script src="data.js"></script>
   <script>
+    async function renderCountSummary() {
+      await window.__dataReady;
+        
+      document.getElementById("countSummary").textContent =
+        `シナリオ ${scenarios.length}件 / セッション ${sessions.length}件 / キャラ ${characters.length}件`;
+    }
+
+renderCountSummary();
     let swRefreshing = false;
 
     function setSwStatus(text) {
