@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>キャラ詳細</title>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body{font-family:sans-serif;margin:0;padding:20px;background:#f5f5f5;color:#222}
@@ -59,6 +60,170 @@
     .tag-suggestion-item:hover{
       background:#f5f5f5;
     }
+
+    #exportStage{
+      position:absolute;
+      top:0;
+      left:-12000px;
+      width:1754px;
+    }
+    .character-export{
+      display:flex;
+      flex-direction:column;
+      width:1754px;
+      height:2480px;
+      padding:64px;
+      color:#272b35;
+      background:#fff;
+      font-family:"Yu Gothic", "Hiragino Kaku Gothic ProN", sans-serif;
+      box-sizing:border-box;
+      overflow:hidden;
+    }
+    .character-export__header{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:32px;
+      padding-bottom:28px;
+      border-bottom:4px solid var(--character-color, #5d86dc);
+    }
+    .character-export__header-content{flex:1;min-width:0}
+    .character-export__avatar,
+    .character-export__avatar-placeholder{
+      width:190px;height:190px;border-radius:16px;object-fit:cover;flex:0 0 auto
+    }
+    .character-export__avatar{border:1px solid #ccd4e1}
+    .character-export__avatar-placeholder{
+      display:grid;place-items:center;background:#eef3ff;color:#7180a0;font-size:18px;font-weight:700
+    }
+    .character-export__eyebrow{
+      margin:0 0 10px;
+      color:var(--character-color, #5d86dc);
+      font-size:22px;
+      font-weight:700;
+      letter-spacing:.12em;
+    }
+    .character-export__name{
+      margin:0;
+      font-size:52px;
+      line-height:1.2;
+      word-break:break-word;
+    }
+    .character-export__tags{
+      margin:0;
+      color:#697386;
+      font-size:20px;
+      text-align:right;
+    }
+    .character-export__scenario-section{margin-top:32px}
+    .character-export__scenario-list{
+      display:grid;
+      grid-template-columns:repeat(3, 1fr);
+      gap:20px;
+      padding:20px;
+    }
+    .character-export__section{
+      border:1px solid #ccd4e1;
+      border-radius:12px;
+      overflow:hidden;
+    }
+    .character-export__section-title{
+      margin:0;
+      padding:16px 20px;
+      color:#25324c;
+      background:#eef3ff;
+      font-size:24px;
+    }
+    .character-export__scenario-card{
+      min-height:116px;
+      min-width:0;
+      padding:16px;
+      overflow:hidden;
+      border:1px solid #dde3ec;
+      border-radius:10px;
+      background:#fafcff;
+    }
+    .character-export__scenario-title,
+    .character-export__question-text{
+      display:block;
+      font-size:18px;
+      font-weight:700;
+      line-height:1.45;
+      word-break:break-word;
+    }
+    .character-export__scenario-meta{
+      display:block;
+      margin-top:8px;
+      color:#697386;
+      font-size:15px;
+      line-height:1.5;
+    }
+    .character-export__question-grid{
+      display:grid;
+      grid-template-columns:repeat(3, minmax(0, 1fr));
+      gap:20px;
+      margin-top:28px;
+    }
+    .character-export__summary{
+      display:grid;
+      grid-template-columns:1.45fr 1fr;
+      gap:20px;
+      margin-top:28px;
+    }
+    .character-export__memo{
+      max-height:290px;
+      margin:0;
+      padding:20px;
+      color:#3b4352;
+      font-size:17px;
+      line-height:1.65;
+      white-space:pre-wrap;
+      overflow:hidden;
+      word-break:break-word;
+    }
+    .character-export__radar-wrap{
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      padding:10px;
+    }
+    .character-export__radar{width:360px;height:360px}
+    .character-export__question-group{min-width:0}
+    .character-export__question-list{margin:0;padding:0;list-style:none}
+    .character-export__question{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      padding:9px 14px;
+      border-top:1px solid #dde3ec;
+    }
+    .character-export__question:first-child{border-top:none}
+    .character-export__answer{
+      flex:0 0 auto;
+      margin:0;
+      color:#3b4352;
+      font-size:15px;
+      line-height:1.45;
+      white-space:nowrap;
+      word-break:break-word;
+    }
+    .character-export__empty{
+      padding:20px;
+      color:#697386;
+      font-size:19px;
+    }
+    .character-export__footer{
+      margin-top:28px;
+      color:#8993a4;
+      font-size:16px;
+      text-align:right;
+    }
+    .character-export__profile{
+      display:flex;flex-wrap:wrap;gap:10px 24px;margin:14px 0 0;color:#3b4352;font-size:18px
+    }
+    .character-export__profile-item{display:flex;align-items:center;gap:8px}
+    .character-export__color-chip{width:20px;height:20px;border-radius:50%;border:1px solid #b8c0cc}
   </style>
 </head>
 <body>
@@ -69,12 +234,17 @@
       <div class="row" style="align-items:center;">
         <h2 id="pageTitle" style="margin:0;flex:1;">キャラ詳細</h2>
         <button id="editToggleBtn" type="button" onclick="toggleEditMode()">編集する</button>
+        <button id="pngExportBtn" type="button" onclick="exportCharacterSummary()">PNG出力</button>
       </div>
     </div>
 
     <div id="viewMode">
       <div class="card">
         <div class="view-item"><b>名前:</b> <span id="viewName"></span></div>
+        <div class="view-item"><b>性別:</b> <span id="viewGender"></span></div>
+        <div class="view-item"><b>年齢:</b> <span id="viewAge"></span></div>
+        <div class="view-item"><b>誕生日:</b> <span id="viewBirthday"></span></div>
+        <div class="view-item"><b>イメージカラー:</b> <span id="viewImageColor"></span></div>
         <div class="view-item"><b>URL:</b> <span id="viewUrl"></span></div>
         <div class="view-item"><b>タグ:</b> <span id="viewTags"></span></div>
         <div class="view-item"><b>メモ:</b><br><span id="viewMemo"></span></div>
@@ -104,7 +274,7 @@
       </div>
 
       <div class="card">
-        <h3>レーダーチャート</h3>
+        <h3>レーダーチャート（カテゴリ合計）</h3>
         <canvas id="chart"></canvas>
       </div>
     </div>
@@ -115,6 +285,15 @@
           <input id="nameInput" class="grow" placeholder="キャラ名">
           <button type="button" onclick="saveCharacter()">保存</button>
           <button type="button" onclick="deleteCharacter()">削除</button>
+        </div>
+        <div class="row" style="margin-top:10px;align-items:center;">
+          <input id="genderInput" placeholder="性別">
+          <input id="ageInput" type="number" min="0" max="999" placeholder="年齢">
+          <label>誕生日
+            <select id="birthdayMonthInput" aria-label="誕生月" onchange="updateBirthdayDayOptions()"></select> 月
+            <select id="birthdayDayInput" aria-label="誕生日"></select> 日
+          </label>
+          <label>イメージカラー <input id="imageColorInput" type="color" value="#5d86dc"></label>
         </div>
         <div style="margin-top:10px;">
           <input id="urlInput" class="grow" placeholder="URL（いあキャラ / ゆとシート / 紹介ページなど）">
@@ -168,12 +347,16 @@
     </div>
   </div>
 
+  <div id="exportStage" aria-hidden="true"></div>
+
   <script src="data.js"></script>
   <script>
     let character = null;
     let chartInstance = null;
     let isEditMode = false;
     let characterId = null;
+
+    const CHART_CATEGORIES = QUESTION_GROUPS.map(group => group.category);
 
     async function resizeImageFile(file, maxSize = 800, quality = 0.68) {
       const dataUrl = await new Promise((resolve, reject) => {
@@ -231,6 +414,10 @@
       character.url = document.getElementById("urlInput").value.trim();
       character.imageUrl = document.getElementById("imageUrlInput").value.trim();
       character.memo = document.getElementById("memo").value;
+      character.gender = document.getElementById("genderInput").value.trim();
+      character.age = document.getElementById("ageInput").value;
+      character.birthday = getBirthdayInputValue();
+      character.imageColor = document.getElementById("imageColorInput").value;
 
       if (await saveAll()) {
         renderViewMode();
@@ -299,6 +486,14 @@
           </div>
         </div>
       `).join("") || "画像なし";
+    }
+
+    function ensureCharacterCollections() {
+      character.images = Array.isArray(character.images) ? character.images : [];
+      character.tags = Array.isArray(character.tags) ? character.tags : [];
+      character.questions = Array.isArray(character.questions) && character.questions.length
+        ? character.questions
+        : defaultQuestions();
     }
 
     async function addTag() {
@@ -383,6 +578,7 @@
       box.innerHTML = (character.questions || []).map((q, i) => `
         <div class="q-item">
           <div class="row">
+            ${q.category ? `<div class="muted">カテゴリ: ${escapeHtml(q.category)}</div>` : ""}
             <input class="grow" value="${escapeHtml(q.q)}" oninput="updateQuestionText(${i}, this.value)">
             <button type="button" onclick="deleteQuestion(${i})">削除</button>
           </div>
@@ -433,6 +629,338 @@
       }).join("") || "通過履歴なし";
     }
 
+    function getScenarioHistoryForExport() {
+      return getSessionsByCharacterId(characterId)
+        .slice()
+        .sort((a, b) => getFirstDateValue(b) - getFirstDateValue(a))
+        .slice(0, 3)
+        .map(session => {
+          const scenario = getScenarioById(session.scenarioId);
+          return {
+            title: scenario?.title || session.title || "無題セッション",
+            dates: (session.dates || []).join(" / ") || "日付未設定",
+            status: session.status || "予定"
+          };
+        });
+    }
+
+    function appendExportElement(parent, tagName, className, text = "") {
+      const element = document.createElement(tagName);
+      if (className) element.className = className;
+      if (text) element.textContent = text;
+      parent.append(element);
+      return element;
+    }
+
+    function createExportSection(title) {
+      const section = document.createElement("section");
+      section.className = "character-export__section";
+      appendExportElement(section, "h2", "character-export__section-title", title);
+      return section;
+    }
+
+    function appendExportImage(parent, source, imageClass, placeholderClass, placeholderText) {
+      if (!source) {
+        appendExportElement(parent, "div", placeholderClass, placeholderText);
+        return;
+      }
+
+      const image = document.createElement("img");
+      image.className = imageClass;
+      image.src = source;
+      image.alt = "";
+      image.crossOrigin = "anonymous";
+      image.onerror = () => {
+        const placeholder = document.createElement("div");
+        placeholder.className = placeholderClass;
+        placeholder.textContent = placeholderText;
+        image.replaceWith(placeholder);
+      };
+      parent.append(image);
+    }
+
+    function formatQuestionAnswer(question) {
+      if (question.type !== "scale") return question.value || "未回答";
+
+      const value = Math.min(5, Math.max(1, Number(question.value) || 3));
+      return `${"●".repeat(value)}${"○".repeat(5 - value)}  ${value} / 5`;
+    }
+
+    function getChartCategoryTotals() {
+      return CHART_CATEGORIES.map(category =>
+        (character.questions || [])
+          .filter(question => question.type === "scale" && question.category === category)
+          .reduce((total, question) => total + (Number(question.value) || 0), 0)
+      );
+    }
+
+    function getCharacterColor() {
+      return /^#[0-9a-fA-F]{6}$/.test(character?.imageColor || "") ? character.imageColor : "#5d86dc";
+    }
+
+    function formatBirthday(value) {
+      const match = String(value || "").match(/(?:\d{4}-)?(\d{2})-(\d{2})$/);
+      return match ? `${Number(match[1])}月${Number(match[2])}日` : "未設定";
+    }
+
+    function populateBirthdayInputs() {
+      const monthInput = document.getElementById("birthdayMonthInput");
+      monthInput.innerHTML = `<option value="">月</option>${Array.from({ length: 12 }, (_, index) => `<option value="${String(index + 1).padStart(2, "0")}">${index + 1}</option>`).join("")}`;
+      updateBirthdayDayOptions();
+    }
+
+    function updateBirthdayDayOptions() {
+      const month = Number(document.getElementById("birthdayMonthInput").value);
+      const dayInput = document.getElementById("birthdayDayInput");
+      const currentValue = dayInput.value;
+      const days = month === 2 ? 29 : [4, 6, 9, 11].includes(month) ? 30 : 31;
+      dayInput.innerHTML = `<option value="">日</option>${Array.from({ length: days }, (_, index) => `<option value="${String(index + 1).padStart(2, "0")}">${index + 1}</option>`).join("")}`;
+      dayInput.value = currentValue;
+    }
+
+    function getBirthdayInputValue() {
+      const month = document.getElementById("birthdayMonthInput").value;
+      const day = document.getElementById("birthdayDayInput").value;
+      return month && day ? `${month}-${day}` : "";
+    }
+
+    function hexToRgba(hex, alpha) {
+      const value = hex.slice(1);
+      const r = parseInt(value.slice(0, 2), 16);
+      const g = parseInt(value.slice(2, 4), 16);
+      const b = parseInt(value.slice(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function drawExportRadarChart(canvas) {
+      const size = 720;
+      const center = size / 2;
+      const radius = 245;
+      const totals = getChartCategoryTotals();
+      const color = getCharacterColor();
+      const context = canvas.getContext("2d");
+      canvas.width = size;
+      canvas.height = size;
+
+      context.clearRect(0, 0, size, size);
+      context.font = '22px "Yu Gothic", sans-serif';
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+
+      const pointAt = (index, ratio) => {
+        const angle = -Math.PI / 2 + (Math.PI * 2 * index) / CHART_CATEGORIES.length;
+        return {
+          x: center + Math.cos(angle) * radius * ratio,
+          y: center + Math.sin(angle) * radius * ratio
+        };
+      };
+
+      for (let step = 1; step <= 5; step += 1) {
+        context.beginPath();
+        CHART_CATEGORIES.forEach((_, index) => {
+          const point = pointAt(index, step / 5);
+          if (index === 0) context.moveTo(point.x, point.y);
+          else context.lineTo(point.x, point.y);
+        });
+        context.closePath();
+        context.strokeStyle = "#ccd4e1";
+        context.lineWidth = 2;
+        context.stroke();
+      }
+
+      CHART_CATEGORIES.forEach((category, index) => {
+        const point = pointAt(index, 1);
+        context.beginPath();
+        context.moveTo(center, center);
+        context.lineTo(point.x, point.y);
+        context.strokeStyle = "#ccd4e1";
+        context.lineWidth = 2;
+        context.stroke();
+
+        const labelPoint = pointAt(index, 1.18);
+        context.fillStyle = "#25324c";
+        context.fillText(`${category} ${totals[index]} / 50`, labelPoint.x, labelPoint.y);
+      });
+
+      context.beginPath();
+      totals.forEach((total, index) => {
+        const point = pointAt(index, Math.min(50, Math.max(0, total)) / 50);
+        if (index === 0) context.moveTo(point.x, point.y);
+        else context.lineTo(point.x, point.y);
+      });
+      context.closePath();
+      context.fillStyle = hexToRgba(color, 0.28);
+      context.fill();
+      context.strokeStyle = color;
+      context.lineWidth = 5;
+      context.stroke();
+
+      totals.forEach((total, index) => {
+        const point = pointAt(index, Math.min(50, Math.max(0, total)) / 50);
+        context.beginPath();
+        context.arc(point.x, point.y, 7, 0, Math.PI * 2);
+        context.fillStyle = color;
+        context.fill();
+      });
+    }
+
+    function createCharacterExportCard() {
+      ensureCharacterCollections();
+
+      const card = document.createElement("article");
+      card.className = "character-export";
+      card.style.setProperty("--character-color", getCharacterColor());
+
+      const header = appendExportElement(card, "header", "character-export__header");
+      const heading = document.createElement("div");
+      heading.className = "character-export__header-content";
+      appendExportElement(heading, "p", "character-export__eyebrow", "CHARACTER ARCHIVE");
+      appendExportElement(heading, "h1", "character-export__name", character.name || "無名キャラ");
+      const profile = appendExportElement(heading, "div", "character-export__profile");
+      [["性別", character.gender || "未設定"], ["年齢", character.age ? `${character.age}歳` : "未設定"], ["誕生日", formatBirthday(character.birthday)]].forEach(([label, value]) => {
+        const item = appendExportElement(profile, "span", "character-export__profile-item");
+        appendExportElement(item, "b", "", label);
+        appendExportElement(item, "span", "", value);
+      });
+      const colorItem = appendExportElement(profile, "span", "character-export__profile-item");
+      appendExportElement(colorItem, "b", "", "イメージカラー");
+      const chip = appendExportElement(colorItem, "span", "character-export__color-chip");
+      chip.style.backgroundColor = getCharacterColor();
+      appendExportElement(colorItem, "span", "", getCharacterColor());
+      appendExportElement(
+        heading,
+        "p",
+        "character-export__tags",
+        character.tags.length ? `タグ: ${character.tags.join(" / ")}` : "タグなし"
+      );
+      header.append(heading);
+      appendExportImage(
+        header,
+        character.images[0] || character.imageUrl,
+        "character-export__avatar",
+        "character-export__avatar-placeholder",
+        "NO IMAGE"
+      );
+
+      const scenariosSection = createExportSection("通過したシナリオ（最新3件）");
+      scenariosSection.classList.add("character-export__scenario-section");
+      const scenarioHistory = getScenarioHistoryForExport();
+
+      if (scenarioHistory.length) {
+        const list = appendExportElement(scenariosSection, "div", "character-export__scenario-list");
+        scenarioHistory.forEach(scenario => {
+          const item = appendExportElement(list, "article", "character-export__scenario-card");
+          appendExportElement(item, "span", "character-export__scenario-title", scenario.title);
+          appendExportElement(
+            item,
+            "span",
+            "character-export__scenario-meta",
+            `${scenario.dates} ／ ${scenario.status}`
+          );
+        });
+      } else {
+        appendExportElement(scenariosSection, "p", "character-export__empty", "通過履歴なし");
+      }
+      card.append(scenariosSection);
+
+      const summary = appendExportElement(card, "div", "character-export__summary");
+      const memoSection = createExportSection("キャラメモ");
+      appendExportElement(memoSection, "p", "character-export__memo", character.memo || "メモなし");
+      summary.append(memoSection);
+
+      const radarSection = createExportSection("レーダーチャート（合計 / 50）");
+      const radarWrap = appendExportElement(radarSection, "div", "character-export__radar-wrap");
+      const radarCanvas = document.createElement("canvas");
+      radarCanvas.className = "character-export__radar";
+      radarWrap.append(radarCanvas);
+      drawExportRadarChart(radarCanvas);
+      summary.append(radarSection);
+
+      const questionGrid = appendExportElement(card, "div", "character-export__question-grid");
+      QUESTION_GROUPS.forEach(({ category }) => {
+        const questionsSection = createExportSection(category);
+        questionsSection.classList.add("character-export__question-group");
+        const list = appendExportElement(questionsSection, "ul", "character-export__question-list");
+
+        character.questions
+          .filter(question => question.category === category)
+          .forEach(question => {
+            const item = appendExportElement(list, "li", "character-export__question");
+            appendExportElement(item, "span", "character-export__question-text", question.q || "質問");
+            appendExportElement(item, "p", "character-export__answer", formatQuestionAnswer(question));
+          });
+
+        if (!list.children.length) {
+          appendExportElement(questionsSection, "p", "character-export__empty", "質問なし");
+        }
+        questionGrid.append(questionsSection);
+      });
+
+      const additionalQuestions = character.questions.filter(question => !question.category || !CHART_CATEGORIES.includes(question.category));
+      if (additionalQuestions.length) {
+        const questionsSection = createExportSection("追加した質問");
+        questionsSection.classList.add("character-export__question-group");
+        const list = appendExportElement(questionsSection, "ul", "character-export__question-list");
+        additionalQuestions.forEach(question => {
+          const item = appendExportElement(list, "li", "character-export__question");
+          appendExportElement(item, "span", "character-export__question-text", question.q || "質問");
+          appendExportElement(item, "p", "character-export__answer", formatQuestionAnswer(question));
+        });
+        questionGrid.append(questionsSection);
+      }
+
+      appendExportElement(
+        card,
+        "footer",
+        "character-export__footer",
+        `TRPG管理ツール  |  ${new Date().toLocaleDateString("ja-JP")}`
+      );
+
+      return card;
+    }
+
+    async function downloadCanvasAsPng(canvas, filename) {
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+      if (!blob) throw new Error("画像データの作成に失敗しました");
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function exportCharacterSummary() {
+      if (!window.html2canvas) {
+        alert("画像出力の準備に失敗しました。ページを再読み込みして、もう一度お試しください。");
+        return;
+      }
+
+      const button = document.getElementById("pngExportBtn");
+      const stage = document.getElementById("exportStage");
+      button.disabled = true;
+      button.textContent = "画像を作成中…";
+      stage.replaceChildren(createCharacterExportCard());
+
+      try {
+        const canvas = await html2canvas(stage.firstElementChild, {
+          backgroundColor: "#ffffff",
+          scale: 2,
+          useCORS: true
+        });
+        const safeName = (character.name || "character").replace(/[\\/:*?\"<>|]/g, "_");
+        await downloadCanvasAsPng(canvas, `${safeName}_character_summary_A3.png`);
+      } catch (error) {
+        console.error(error);
+        alert("画像の出力に失敗しました。もう一度お試しください。");
+      } finally {
+        stage.replaceChildren();
+        button.disabled = false;
+        button.textContent = "PNG出力";
+      }
+    }
+
     function renderRelatedCharacters() {
       const related = getRelatedCharacters(characterId);
 
@@ -473,14 +1001,14 @@
     }
 
     function renderViewMode() {
-      character.images = Array.isArray(character.images) ? character.images : [];
-      character.tags = Array.isArray(character.tags) ? character.tags : [];
-      character.questions = Array.isArray(character.questions) && character.questions.length
-        ? character.questions
-        : defaultQuestions();
+      ensureCharacterCollections();
 
       document.getElementById("pageTitle").textContent = character.name || "キャラ詳細";
       document.getElementById("viewName").textContent = character.name || "無名キャラ";
+      document.getElementById("viewGender").textContent = character.gender || "未設定";
+      document.getElementById("viewAge").textContent = character.age ? `${character.age}歳` : "未設定";
+      document.getElementById("viewBirthday").textContent = formatBirthday(character.birthday);
+      document.getElementById("viewImageColor").innerHTML = `<span style="display:inline-block;width:16px;height:16px;vertical-align:middle;margin-right:6px;border:1px solid #aaa;border-radius:50%;background:${getCharacterColor()}"></span>${getCharacterColor()}`;
       document.getElementById("viewUrl").innerHTML = character.url
         ? `<a href="${escapeHtml(character.url)}" target="_blank" rel="noopener noreferrer">URLを開く</a>`
         : "未設定";
@@ -504,6 +1032,7 @@
 
       document.getElementById("viewQuestions").innerHTML = character.questions.map(q => `
         <div class="q-item">
+          ${q.category ? `<div class="muted">カテゴリ: ${escapeHtml(q.category)}</div>` : ""}
           <div><b>${escapeHtml(q.q)}</b></div>
           <div class="muted" style="margin-top:8px;">
             ${q.type === "scale" ? `回答: ${Number(q.value || 3)}` : escapeHtml(q.value || "未回答")}
@@ -517,16 +1046,20 @@
     }
 
     function renderEditMode() {
-      character.images = Array.isArray(character.images) ? character.images : [];
-      character.tags = Array.isArray(character.tags) ? character.tags : [];
-      character.questions = Array.isArray(character.questions) && character.questions.length
-        ? character.questions
-        : defaultQuestions();
+      ensureCharacterCollections();
 
       document.getElementById("nameInput").value = character.name || "";
       document.getElementById("urlInput").value = character.url || "";
       document.getElementById("imageUrlInput").value = character.imageUrl || "";
       document.getElementById("memo").value = character.memo || "";
+      document.getElementById("genderInput").value = character.gender || "";
+      document.getElementById("ageInput").value = character.age || "";
+      populateBirthdayInputs();
+      const birthdayMatch = String(character.birthday || "").match(/(?:\d{4}-)?(\d{2})-(\d{2})$/);
+      document.getElementById("birthdayMonthInput").value = birthdayMatch?.[1] || "";
+      updateBirthdayDayOptions();
+      document.getElementById("birthdayDayInput").value = birthdayMatch?.[2] || "";
+      document.getElementById("imageColorInput").value = getCharacterColor();
 
       renderImages();
       renderTags();
@@ -536,32 +1069,30 @@
 
     function drawChart() {
       const canvas = document.getElementById("chart");
-      const scales = (character.questions || [])
-        .filter(q => q.type === "scale")
-        .sort((a, b) => {
-          const order = ["好奇心", "世話焼き", "野蛮度", "協調性", "素直さ"];
-          return order.indexOf(a.q) - order.indexOf(b.q);
-        });
+      const categoryTotals = getChartCategoryTotals();
 
       if (chartInstance) chartInstance.destroy();
-      if (scales.length === 0) return;
 
       chartInstance = new Chart(canvas, {
         type: "radar",
         data: {
-          labels: scales.map(q => q.q),
+          labels: CHART_CATEGORIES,
           datasets: [{
             label: character.name || "キャラ",
-            data: scales.map(q => Number(q.value || 3))
+            data: categoryTotals,
+            backgroundColor: hexToRgba(getCharacterColor(), 0.28),
+            borderColor: getCharacterColor(),
+            pointBackgroundColor: getCharacterColor(),
+            pointBorderColor: getCharacterColor()
           }]
         },
         options: {
           responsive: true,
           scales: {
             r: {
-              min: 1,
-              max: 5,
-              ticks: { stepSize: 1 }
+              min: 0,
+              max: 50,
+              ticks: { stepSize: 10 }
             }
           }
         }
@@ -610,16 +1141,23 @@
       return { ok: false, imageDataUrl: null, imageUrl: null };
     }
 
-    async function importImageFromUrlInput() {
-      const url = document.getElementById("urlInput").value.trim();
+    async function importImage({
+      inputId,
+      characterProperty,
+      direct,
+      emptyMessage,
+      successMessage,
+      fallbackMessage
+    }) {
+      const url = document.getElementById(inputId).value.trim();
       if (!url) {
-        alert("URLを入力してください");
+        alert(emptyMessage);
         return;
       }
 
-      character.url = url;
+      character[characterProperty] = url;
 
-      const result = await tryImportImageFromUrl(url, false);
+      const result = await tryImportImageFromUrl(url, direct);
 
       if (result.ok && result.imageDataUrl) {
         character.images = Array.isArray(character.images) ? character.images : [];
@@ -631,7 +1169,7 @@
           return;
         }
 
-        alert("画像取得に成功しました");
+        alert(successMessage);
         renderImages();
         renderViewMode();
         return;
@@ -640,42 +1178,30 @@
       const ok = await saveAll(false);
       if (!ok) return;
 
-      alert("画像取得はできませんでした。URLのみ保存しました。");
+      alert(fallbackMessage);
       renderViewMode();
     }
 
+    async function importImageFromUrlInput() {
+      await importImage({
+        inputId: "urlInput",
+        characterProperty: "url",
+        direct: false,
+        emptyMessage: "URLを入力してください",
+        successMessage: "画像取得に成功しました",
+        fallbackMessage: "画像取得はできませんでした。URLのみ保存しました。"
+      });
+    }
+
     async function importImageFromImageUrl() {
-      const imageUrl = document.getElementById("imageUrlInput").value.trim();
-      if (!imageUrl) {
-        alert("画像URLを入力してください");
-        return;
-      }
-
-      character.imageUrl = imageUrl;
-
-      const result = await tryImportImageFromUrl(imageUrl, true);
-
-      if (result.ok && result.imageDataUrl) {
-        character.images = Array.isArray(character.images) ? character.images : [];
-        character.images.unshift(result.imageDataUrl);
-
-        const ok = await saveAll(false);
-        if (!ok) {
-          character.images.shift();
-          return;
-        }
-
-        alert("画像URLから取り込みました");
-        renderImages();
-        renderViewMode();
-        return;
-      }
-
-      const ok = await saveAll(false);
-      if (!ok) return;
-
-      alert("画像取得はできませんでした。画像URLのみ保存しました。");
-      renderViewMode();
+      await importImage({
+        inputId: "imageUrlInput",
+        characterProperty: "imageUrl",
+        direct: true,
+        emptyMessage: "画像URLを入力してください",
+        successMessage: "画像URLから取り込みました",
+        fallbackMessage: "画像取得はできませんでした。画像URLのみ保存しました。"
+      });
     }
 
     async function init() {
@@ -691,20 +1217,21 @@
       renderViewMode();
       toggleEditMode(false);
     }
+
     function getAllExistingTags() {
-  const tagSet = new Set();
+      const tagSet = new Set();
 
-  (characters || []).forEach(c => {
-    (c.tags || []).forEach(tag => {
-      const t = String(tag || "").trim();
-      if (t) tagSet.add(t);
-    });
-  });
+      (characters || []).forEach(c => {
+        (c.tags || []).forEach(tag => {
+          const normalizedTag = String(tag || "").trim();
+          if (normalizedTag) tagSet.add(normalizedTag);
+        });
+      });
 
-  return [...tagSet].sort((a, b) => a.localeCompare(b, "ja"));
-}
+      return [...tagSet].sort((a, b) => a.localeCompare(b, "ja"));
+    }
 
-function selectTagSuggestion(tag) {
+    function selectTagSuggestion(tag) {
       document.getElementById("tagInput").value = tag;
       renderTagSuggestions();
     }
@@ -719,13 +1246,13 @@ function selectTagSuggestion(tag) {
         box.innerHTML = "";
         return;
       }
-    
+
       const currentTags = new Set((character.tags || []).map(t => String(t || "").trim()));
       const matched = getAllExistingTags()
         .filter(tag => tag.toLowerCase().includes(keyword))
         .filter(tag => !currentTags.has(tag))
         .slice(0, 10);
-    
+
       box.innerHTML = matched.length ? `
         <div class="candidate-list">
           ${matched.map(tag => `
@@ -739,5 +1266,10 @@ function selectTagSuggestion(tag) {
 
     init();
   </script>
+  <div id="pngDialog">
+
+・・・
+
+</div>
 </body>
 </html>

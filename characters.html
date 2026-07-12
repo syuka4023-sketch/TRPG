@@ -20,9 +20,10 @@
       gap:12px;
     }
     .icon-card{
-      background:#fff;
+      background:linear-gradient(145deg, #fff 0%, var(--character-color, #5d86dc) 210%);
       border-radius:16px;
       padding:12px;
+      border:1px solid var(--character-color, #5d86dc);
       box-shadow:0 2px 10px rgba(0,0,0,.08);
       text-align:center;
       cursor:pointer;
@@ -103,6 +104,7 @@
         images: [],
         tags: [],
         memo: "",
+        imageColor: "#5d86dc",
         questions: defaultQuestions()
       };
 
@@ -159,11 +161,15 @@
        `表示 ${sorted.length}件 / 全 ${characters.length}件`;
 
       document.getElementById("list").innerHTML = sorted.map(c => `
-        <div class="icon-card" onclick="location.href='character_detail.html?id=${encodeURIComponent(c.id)}'">
+        <div class="icon-card" style="--character-color:${getCharacterColor(c)}" onclick="location.href='character_detail.html?id=${encodeURIComponent(c.id)}'">
           <img class="thumb" src="${c.images?.[0] || ''}" alt="">
           <div class="name">${escapeHtml(c.name)}</div>
         </div>
       `).join("") || `<div class="panel">キャラクターがありません。</div>`;
+    }
+
+    function getCharacterColor(character) {
+      return /^#[0-9a-fA-F]{6}$/.test(character?.imageColor || "") ? character.imageColor : "#5d86dc";
     }
 
     async function init() {
